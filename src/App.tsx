@@ -1,15 +1,22 @@
 import { useState } from "react";
-import { AppShell } from "./components/AppShell";
+import { AppShell, type AppPage } from "./components/AppShell";
 import { AppDetails } from "./components/AppDetails";
 import { Dashboard } from "./components/Dashboard";
 import { NewProjectModal } from "./components/NewProjectModal";
 import { Projects } from "./components/Projects";
+import {
+  CompliancePage,
+  CopyReviewPage,
+  HistoryPage,
+  TestCasesPage,
+  UploadsPage,
+} from "./components/StaticReleasePages";
 import { projects as initialProjects, type Project } from "./data/mockRelease";
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [activeProjectId, setActiveProjectId] = useState(initialProjects[0].id);
-  const [page, setPage] = useState<"dashboard" | "projects" | "app-details">("dashboard");
+  const [page, setPage] = useState<AppPage>("dashboard");
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
 
@@ -28,7 +35,23 @@ export default function App() {
   return (
     <>
       <AppShell currentPage={page} onNavigate={setPage} onNewProject={() => setIsNewProjectOpen(true)}>
-        {page === "dashboard" ? <Dashboard activeProject={activeProject} projects={projects} onSelectProject={selectProject} onViewProjects={() => setPage("projects")} /> : page === "projects" ? <Projects projects={projects} activeProjectId={activeProjectId} onSelectProject={selectProject} /> : <AppDetails project={activeProject} onSave={saveAppDetails} />}
+        {page === "dashboard" ? (
+          <Dashboard activeProject={activeProject} projects={projects} onSelectProject={selectProject} onViewProjects={() => setPage("projects")} />
+        ) : page === "projects" ? (
+          <Projects projects={projects} activeProjectId={activeProjectId} onSelectProject={selectProject} />
+        ) : page === "app-details" ? (
+          <AppDetails project={activeProject} onSave={saveAppDetails} />
+        ) : page === "uploads" ? (
+          <UploadsPage project={activeProject} />
+        ) : page === "compliance" ? (
+          <CompliancePage project={activeProject} />
+        ) : page === "test-cases" ? (
+          <TestCasesPage project={activeProject} />
+        ) : page === "copy-review" ? (
+          <CopyReviewPage project={activeProject} />
+        ) : (
+          <HistoryPage project={activeProject} />
+        )}
       </AppShell>
       {isNewProjectOpen && <NewProjectModal onClose={() => setIsNewProjectOpen(false)} onCreate={createProject} />}
     </>

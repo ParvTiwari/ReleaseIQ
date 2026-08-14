@@ -3,10 +3,10 @@ import {
   ClipboardCheck,
   FilePenLine,
   FileText,
-  Gauge,
   History,
   LayoutDashboard,
   LockKeyhole,
+  MessageSquareText,
   Search,
   Settings,
   ShieldCheck,
@@ -15,18 +15,37 @@ import {
 import type { ReactNode } from "react";
 import { Button } from "./ui/Button";
 
-export type AppPage = "dashboard" | "projects" | "app-details";
+export type AppPage =
+  | "dashboard"
+  | "projects"
+  | "app-details"
+  | "uploads"
+  | "compliance"
+  | "test-cases"
+  | "copy-review"
+  | "history";
 
-const navItems: Array<{ label: string; icon: typeof LayoutDashboard; page?: AppPage }> = [
+const navItems: Array<{ label: string; icon: typeof LayoutDashboard; page: AppPage }> = [
   { label: "Dashboard", icon: LayoutDashboard, page: "dashboard" },
   { label: "Projects", icon: FileText, page: "projects" },
   { label: "App details", icon: FilePenLine, page: "app-details" },
-  { label: "Uploads", icon: UploadCloud },
-  { label: "Compliance", icon: ShieldCheck },
-  { label: "Test Cases", icon: ClipboardCheck },
-  { label: "Reports", icon: Gauge },
-  { label: "History", icon: History },
+  { label: "Uploads", icon: UploadCloud, page: "uploads" },
+  { label: "Compliance", icon: ShieldCheck, page: "compliance" },
+  { label: "Test Cases", icon: ClipboardCheck, page: "test-cases" },
+  { label: "Copy Review", icon: MessageSquareText, page: "copy-review" },
+  { label: "History", icon: History, page: "history" },
 ];
+
+const pageTitles: Record<AppPage, string> = {
+  dashboard: "Release Readiness Dashboard",
+  projects: "Projects",
+  "app-details": "App Details",
+  uploads: "Uploads",
+  compliance: "Compliance",
+  "test-cases": "Test Cases",
+  "copy-review": "Copy Review",
+  history: "History",
+};
 
 export function AppShell({
   children,
@@ -56,13 +75,12 @@ export function AppShell({
             <button
               type="button"
               key={item.label}
-              onClick={() => item.page && onNavigate(item.page)}
+              onClick={() => onNavigate(item.page)}
               className={`flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm ${
                 item.page === currentPage
                   ? "bg-accent font-medium text-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
-              } ${item.page ? "" : "cursor-not-allowed opacity-50"}`}
-              disabled={!item.page}
+              }`}
             >
               <item.icon className="h-4 w-4" />
               {item.label}
@@ -81,13 +99,7 @@ export function AppShell({
           <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Workspace</p>
-              <h1 className="text-lg font-semibold sm:text-xl">
-                {currentPage === "dashboard"
-                  ? "Release Readiness Dashboard"
-                  : currentPage === "projects"
-                    ? "Projects"
-                    : "App Details"}
-              </h1>
+              <h1 className="text-lg font-semibold sm:text-xl">{pageTitles[currentPage]}</h1>
             </div>
             <div className="hidden min-w-0 max-w-md flex-1 items-center rounded-md border border-border bg-card px-3 py-2 md:flex">
               <Search className="h-4 w-4 text-muted-foreground" />
