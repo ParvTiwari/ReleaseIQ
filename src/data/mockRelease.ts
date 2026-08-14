@@ -4,6 +4,9 @@ export type Project = {
   id: string;
   name: string;
   packageId: string;
+  version: string;
+  category: string;
+  releaseNotes: string;
   platform: "Android" | "iOS";
   description: string;
   releaseTarget: string;
@@ -15,6 +18,9 @@ export const activeProject: Project = {
   id: "pulsefit-android",
   name: "PulseFit Android",
   packageId: "com.pulsefit.mobile",
+  version: "2.4.0",
+  category: "Health & Fitness",
+  releaseNotes: "Improved workout plans, refined activity tracking, and stability fixes.",
   platform: "Android",
   description: "Fitness coaching and activity tracking app for Android.",
   releaseTarget: "Aug 18, 2026",
@@ -62,6 +68,9 @@ export const projects: Project[] = [
     id: "medtrack-ios",
     name: "MedTrack iOS",
     packageId: "com.medtrack.ios",
+    version: "3.8.1",
+    category: "Medical",
+    releaseNotes: "Added medication schedule reminders and accessibility improvements.",
     platform: "iOS",
     description: "Medication reminders and appointment tracking for iPhone users.",
     releaseTarget: "Sep 2, 2026",
@@ -72,6 +81,9 @@ export const projects: Project[] = [
     id: "campuspay-android",
     name: "CampusPay",
     packageId: "com.campuspay.mobile",
+    version: "1.9.0",
+    category: "Finance",
+    releaseNotes: "Improved campus payment confirmation and transaction history.",
     platform: "Android",
     description: "Campus payments and student account management app.",
     releaseTarget: "Aug 25, 2026",

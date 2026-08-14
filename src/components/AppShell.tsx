@@ -1,6 +1,7 @@
 import {
   Bell,
   ClipboardCheck,
+  FilePenLine,
   FileText,
   Gauge,
   History,
@@ -14,11 +15,12 @@ import {
 import type { ReactNode } from "react";
 import { Button } from "./ui/Button";
 
-export type AppPage = "dashboard" | "projects";
+export type AppPage = "dashboard" | "projects" | "app-details";
 
 const navItems: Array<{ label: string; icon: typeof LayoutDashboard; page?: AppPage }> = [
   { label: "Dashboard", icon: LayoutDashboard, page: "dashboard" },
   { label: "Projects", icon: FileText, page: "projects" },
+  { label: "App details", icon: FilePenLine, page: "app-details" },
   { label: "Uploads", icon: UploadCloud },
   { label: "Compliance", icon: ShieldCheck },
   { label: "Test Cases", icon: ClipboardCheck },
@@ -80,7 +82,11 @@ export function AppShell({
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Workspace</p>
               <h1 className="text-lg font-semibold sm:text-xl">
-                {currentPage === "dashboard" ? "Release Readiness Dashboard" : "Projects"}
+                {currentPage === "dashboard"
+                  ? "Release Readiness Dashboard"
+                  : currentPage === "projects"
+                    ? "Projects"
+                    : "App Details"}
               </h1>
             </div>
             <div className="hidden min-w-0 max-w-md flex-1 items-center rounded-md border border-border bg-card px-3 py-2 md:flex">
