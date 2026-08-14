@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -17,6 +18,7 @@ import type { Project } from "../data/mockRelease";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
+
 
 const uploadItems = [
   { name: "release-aab-2.4.0.aab", type: "Android app bundle", size: "84.2 MB", status: "Ready" },
@@ -121,33 +123,236 @@ export function UploadsPage({ project }: { project: Project }) {
 }
 
 export function CompliancePage({ project }: { project: Project }) {
+  const isCustomPolicy = project.platform === "Custom Policy" || !!project.customPolicy;
+  const customPolicy = project.customPolicy;
+
+  const [ruleFilter, setRuleFilter] = useState<"All" | "Passed" | "Warning" | "Blocked">("All");
+  const [customRules, setCustomRules] = useState(() => customPolicy?.rules || []);
+  const [isAddingRule, setIsAddingRule] = useState(false);
+  const [newRule, setNewRule] = useState({
+    ruleName: "",
+    category: "Security",
+    severity: "High" as const,
+    description: "",
+  });
+
+  const activeRules = isCustomPolicy ? (customRules.length ? customRules : customPolicy?.rules || []) : [];
+
+  const filteredCustomRules = activeRules.filter(
+    (rule) => ruleFilter === "All" || rule.status === ruleFilter
+  );
+
+  const passedCount = activeRules.filter((r) => r.status === "Passed").length;
+  const warningCount = activeRules.filter((r) => r.status === "Warning").length;
+  const blockedCount = activeRules.filter((r) => r.status === "Blocked").length;
+
+  const handleAddRule = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRule.ruleName.trim()) return;
+
+    const createdRule = {
+      id: `custom-${Date.now()}`,
+      ruleName: newRule.ruleName,
+      category: newRule.category,
+      severity: newRule.severity,
+      description: newRule.description || "User-defined policy rule constraint.",
+      status: "Passed" as const,
+    };
+
+    setCustomRules((prev) => [createdRule, ...prev]);
+    setNewRule({ ruleName: "", category: "Security", severity: "High", description: "" });
+    setIsAddingRule(false);
+  };
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
-      <PageIntro project={project} eyebrow="Store review" title="Compliance checklist" />
-      <section className="grid gap-4 md:grid-cols-3">
-        <Metric label="Passed checks" value="2" icon={ShieldCheck} />
-        <Metric label="Warnings" value="1" icon={AlertTriangle} />
-        <Metric label="Blockers" value="1" icon={ShieldAlert} />
-      </section>
-      <section className="grid gap-4 lg:grid-cols-2">
-        {complianceItems.map((item) => (
-          <Card key={item.title}>
-            <CardContent>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{item.title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
-                </div>
-                <Badge tone={toneForStatus(item.status)}>{item.status}</Badge>
+      <PageIntro
+        project={project}
+        eyebrow={isCustomPolicy ? "Self-Hosted & Corporate Policy" : "Store review"}
+        title={isCustomPolicy ? "Custom Policy Evaluation Rules" : "Compliance checklist"}
+      />
+
+      {isCustomPolicy && customPolicy && (
+        <Card className="border-primary/40 bg-accent/20">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-primary-foreground">
+                <FileText className="h-5 w-5" />
               </div>
-              <p className="mt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">Owner: {item.owner}</p>
-            </CardContent>
-          </Card>
-        ))}
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Uploaded Custom Policy</p>
+                <h3 className="text-base font-bold text-foreground">{customPolicy.policyName}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                  File: {customPolicy.fileName} ({customPolicy.fileSize}) · Uploaded: {customPolicy.uploadDate}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setIsAddingRule(true)}>
+                + Add Custom Rule Check
+              </Button>
+              <Button>
+                <UploadCloud className="h-4 w-4 mr-1.5" /> Re-scan Policy File
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Metric summary */}
+      <section className="grid gap-4 md:grid-cols-3">
+        <Metric
+          label={isCustomPolicy ? "Passed Policy Rules" : "Passed checks"}
+          value={isCustomPolicy ? `${passedCount}` : "2"}
+          icon={ShieldCheck}
+        />
+        <Metric
+          label={isCustomPolicy ? "Policy Warnings" : "Warnings"}
+          value={isCustomPolicy ? `${warningCount}` : "1"}
+          icon={AlertTriangle}
+        />
+        <Metric
+          label={isCustomPolicy ? "Blocking Violations" : "Blockers"}
+          value={isCustomPolicy ? `${blockedCount}` : "1"}
+          icon={ShieldAlert}
+        />
       </section>
+
+      {/* Add Custom Rule Form Modal/Drawer */}
+      {isAddingRule && (
+        <Card className="border-primary ring-1 ring-primary/25">
+          <CardHeader>
+            <CardTitle>Add Custom Policy Rule Check</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleAddRule} className="grid gap-4">
+              <div className="grid md:grid-cols-3 gap-4">
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Rule Name / Identifier
+                  <input
+                    required
+                    value={newRule.ruleName}
+                    onChange={(e) => setNewRule((prev) => ({ ...prev, ruleName: e.target.value }))}
+                    className="h-10 rounded-md border border-border bg-background px-3 font-normal outline-none focus:ring-2 focus:ring-primary/25"
+                    placeholder="e.g. Disallow unencrypted S3 bucket calls"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Category
+                  <select
+                    value={newRule.category}
+                    onChange={(e) => setNewRule((prev) => ({ ...prev, category: e.target.value }))}
+                    className="h-10 rounded-md border border-border bg-background px-3 font-normal outline-none focus:ring-2 focus:ring-primary/25"
+                  >
+                    <option>Security</option>
+                    <option>Data Protection</option>
+                    <option>Privacy</option>
+                    <option>Compliance</option>
+                    <option>Quality</option>
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Severity Level
+                  <select
+                    value={newRule.severity}
+                    onChange={(e) => setNewRule((prev) => ({ ...prev, severity: e.target.value as any }))}
+                    className="h-10 rounded-md border border-border bg-background px-3 font-normal outline-none focus:ring-2 focus:ring-primary/25"
+                  >
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </label>
+              </div>
+              <label className="grid gap-1.5 text-sm font-medium">
+                Rule Description & Constraint Rationale
+                <textarea
+                  value={newRule.description}
+                  onChange={(e) => setNewRule((prev) => ({ ...prev, description: e.target.value }))}
+                  className="min-h-20 rounded-md border border-border bg-background px-3 py-2 font-normal outline-none focus:ring-2 focus:ring-primary/25"
+                  placeholder="Describe the exact check criteria to evaluate against project assets..."
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={() => setIsAddingRule(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Save & Evaluate Rule</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Rules listing */}
+      {isCustomPolicy ? (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <CardTitle>Evaluated Custom Policy Rules ({filteredCustomRules.length})</CardTitle>
+              <div className="flex gap-1 bg-muted p-1 rounded-md text-xs">
+                {(["All", "Passed", "Warning", "Blocked"] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setRuleFilter(filter)}
+                    className={`px-2.5 py-1 rounded-md font-medium transition ${
+                      ruleFilter === filter ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {filteredCustomRules.map((rule) => (
+              <div key={rule.id} className="rounded-lg border border-border bg-card p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-foreground text-sm">{rule.ruleName}</p>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-medium ${
+                      rule.severity === "High" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {rule.severity} Severity
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{rule.description}</p>
+                  <p className="text-xs text-muted-foreground pt-1">Category: <span className="font-medium text-foreground">{rule.category}</span></p>
+                </div>
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <Badge tone={toneForStatus(rule.status)}>{rule.status}</Badge>
+                  <Button variant="ghost" className="text-xs">Inspect</Button>
+                </div>
+              </div>
+            ))}
+            {filteredCustomRules.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">No policy rules match the selected filter.</p>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <section className="grid gap-4 lg:grid-cols-2">
+          {complianceItems.map((item) => (
+            <Card key={item.title}>
+              <CardContent>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{item.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
+                  </div>
+                  <Badge tone={toneForStatus(item.status)}>{item.status}</Badge>
+                </div>
+                <p className="mt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">Owner: {item.owner}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+      )}
     </div>
   );
 }
+
 
 export function TestCasesPage({ project }: { project: Project }) {
   return (

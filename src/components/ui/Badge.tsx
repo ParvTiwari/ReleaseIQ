@@ -11,13 +11,16 @@ const toneMap = {
 export function Badge({
   children,
   tone = "neutral",
+  className,
 }: {
   children: ReactNode;
   tone?: keyof typeof toneMap;
+  className?: string;
 }) {
   return (
-    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", toneMap[tone])}>
+    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", toneMap[tone], className)}>
       {children}
     </span>
   );
 }
+

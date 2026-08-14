@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AppShell, type AppPage } from "./components/AppShell";
 import { AppDetails } from "./components/AppDetails";
 import { Dashboard } from "./components/Dashboard";
-import { NewProjectModal } from "./components/NewProjectModal";
+import { NewProjectModal, type NewProjectFields } from "./components/NewProjectModal";
 import { Projects } from "./components/Projects";
 import {
   CompliancePage,
@@ -21,14 +21,27 @@ export default function App() {
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
 
   const selectProject = (projectId: string) => { setActiveProjectId(projectId); setPage("dashboard"); };
-  const createProject = ({ name, platform, description, releaseTarget }: Pick<Project, "name" | "platform" | "description" | "releaseTarget">) => {
-    const project: Project = { id: crypto.randomUUID(), name, platform, description, releaseTarget: new Date(`${releaseTarget}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), packageId: "Not configured", version: "1.0.0", category: "Productivity", releaseNotes: "Initial release.", readinessScore: 0, status: "Needs review" };
+  const createProject = (fields: NewProjectFields) => {
+    const project: Project = {
+      id: crypto.randomUUID(),
+      name: fields.name,
+      platform: fields.platform,
+      description: fields.description,
+      releaseTarget: new Date(`${fields.releaseTarget}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      packageId: fields.platform === "Custom Policy" ? `policy.${fields.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.suite` : "Not configured",
+      version: "1.0.0",
+      category: fields.platform === "Custom Policy" ? "Security & Governance" : "Productivity",
+      releaseNotes: fields.platform === "Custom Policy" ? "Initial custom policy evaluation suite." : "Initial release.",
+      readinessScore: fields.customPolicy ? 80 : 0,
+      status: "Needs review",
+      customPolicy: fields.customPolicy,
+    };
     setProjects((current) => [project, ...current]);
     setActiveProjectId(project.id);
     setPage("dashboard");
     setIsNewProjectOpen(false);
   };
-  const saveAppDetails = (details: Pick<Project, "name" | "packageId" | "version" | "category" | "releaseNotes" | "platform">) => {
+  const saveAppDetails = (details: Partial<Project>) => {
     setProjects((current) => current.map((project) => project.id === activeProjectId ? { ...project, ...details } : project));
   };
 
