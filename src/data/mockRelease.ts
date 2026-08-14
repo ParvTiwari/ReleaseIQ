@@ -1,8 +1,22 @@
-export const activeProject = {
+export type ProjectStatus = "Ready" | "Needs review" | "Blocked";
+
+export type Project = {
+  id: string;
+  name: string;
+  packageId: string;
+  platform: "Android" | "iOS";
+  description: string;
+  releaseTarget: string;
+  readinessScore: number;
+  status: ProjectStatus;
+};
+
+export const activeProject: Project = {
+  id: "pulsefit-android",
   name: "PulseFit Android",
   packageId: "com.pulsefit.mobile",
   platform: "Android",
-  version: "2.4.0",
+  description: "Fitness coaching and activity tracking app for Android.",
   releaseTarget: "Aug 18, 2026",
   readinessScore: 82,
   status: "Needs review",
@@ -42,10 +56,28 @@ export const checks = [
   },
 ];
 
-export const projects = [
-  { name: "PulseFit Android", score: 82, platform: "Android", status: "Needs review" },
-  { name: "MedTrack iOS", score: 91, platform: "iOS", status: "Ready" },
-  { name: "CampusPay", score: 68, platform: "Android", status: "Blocked" },
+export const projects: Project[] = [
+  activeProject,
+  {
+    id: "medtrack-ios",
+    name: "MedTrack iOS",
+    packageId: "com.medtrack.ios",
+    platform: "iOS",
+    description: "Medication reminders and appointment tracking for iPhone users.",
+    releaseTarget: "Sep 2, 2026",
+    readinessScore: 91,
+    status: "Ready",
+  },
+  {
+    id: "campuspay-android",
+    name: "CampusPay",
+    packageId: "com.campuspay.mobile",
+    platform: "Android",
+    description: "Campus payments and student account management app.",
+    releaseTarget: "Aug 25, 2026",
+    readinessScore: 68,
+    status: "Blocked",
+  },
 ];
 
 export const testCases = [

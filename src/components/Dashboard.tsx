@@ -6,7 +6,7 @@ import {
   ListChecks,
   ShieldAlert,
 } from "lucide-react";
-import { activeProject, checks, dashboardStats, projects, testCases } from "../data/mockRelease";
+import { checks, dashboardStats, testCases, type Project } from "../data/mockRelease";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -18,7 +18,17 @@ function toneForStatus(status: string) {
   return "neutral";
 }
 
-export function Dashboard() {
+export function Dashboard({
+  activeProject,
+  projects,
+  onSelectProject,
+  onViewProjects,
+}: {
+  activeProject: Project;
+  projects: Project[];
+  onSelectProject: (projectId: string) => void;
+  onViewProjects: () => void;
+}) {
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
       <section className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
@@ -55,7 +65,7 @@ export function Dashboard() {
               <ListChecks className="h-4 w-4" />
               Generate QA cases
             </Button>
-            <Button variant="ghost">
+            <Button variant="ghost" onClick={onViewProjects}>
               View report
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -145,7 +155,14 @@ export function Dashboard() {
 
       <section className="grid gap-4 lg:grid-cols-3">
         {projects.map((project) => (
-          <Card key={project.name}>
+          <button
+            type="button"
+            key={project.id}
+            onClick={() => onSelectProject(project.id)}
+            className="text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-primary/25"
+            aria-label={`Open ${project.name}`}
+          >
+          <Card>
             <CardContent>
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -155,9 +172,9 @@ export function Dashboard() {
                 <Badge tone={toneForStatus(project.status)}>{project.status}</Badge>
               </div>
               <div className="mt-4 flex items-center gap-3">
-                {project.score >= 85 ? (
+                {project.readinessScore >= 85 ? (
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                ) : project.score >= 75 ? (
+                ) : project.readinessScore >= 75 ? (
                   <AlertTriangle className="h-5 w-5 text-amber-600" />
                 ) : (
                   <ShieldAlert className="h-5 w-5 text-rose-600" />
@@ -165,15 +182,16 @@ export function Dashboard() {
                 <div className="w-full">
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Readiness</span>
-                    <span>{project.score}%</span>
+                    <span>{project.readinessScore}%</span>
                   </div>
                   <div className="mt-2 h-2 rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: `${project.score}%` }} />
+                    <div className="h-2 rounded-full bg-primary" style={{ width: `${project.readinessScore}%` }} />
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
+          </button>
         ))}
       </section>
     </div>
