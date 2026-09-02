@@ -51,6 +51,62 @@ export function ReportPage({
     window.print();
   };
 
+  const handleExportJson = () => {
+    const reportData = {
+      reportType: "ReleaseIQ Release Readiness Audit Certificate",
+      generatedAt: new Date().toISOString(),
+      auditHash: `AUDIT-${project.id.slice(0, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`,
+      project: {
+        id: project.id,
+        name: project.name,
+        packageId: project.packageId,
+        version: project.version,
+        platform: project.platform,
+        category: project.category,
+        releaseTarget: project.releaseTarget,
+        readinessScore: project.readinessScore,
+        status: project.status,
+        recommendation: isApproved ? "APPROVED_FOR_SUBMISSION" : "SUBMISSION_BLOCKED",
+      },
+      manifestAudit: {
+        artifactName: manifest?.name || null,
+        targetSdkVersion: manifest?.targetSdkVersion ?? 34,
+        minSdkVersion: manifest?.minSdkVersion ?? 26,
+        permissionsCount: manifest?.permissions.length || 0,
+        permissions: manifest?.permissions || [],
+      },
+      privacyPolicyAudit: {
+        documentName: privacyPolicy?.fileName || null,
+        clausesEvaluated: privacyPolicy?.clauses.length || 0,
+        clauses: privacyPolicy?.clauses || [],
+      },
+      complianceFindings: complianceFindings.map((cf) => ({
+        id: cf.id,
+        title: cf.title,
+        status: cf.status,
+        severity: cf.severity,
+        owner: cf.owner,
+        detail: cf.detail,
+        remediation: cf.remediation || null,
+      })),
+      qaValidationSuite: {
+        totalTestCases: testCases.length,
+        passedTests: testCases.filter((tc) => tc.status === "Passed").length,
+        blockedTests: testCases.filter((tc) => tc.status === "Blocked").length,
+        testCases: testCases,
+      },
+    };
+
+    const jsonStr = JSON.stringify(reportData, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${project.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-readiness-report.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 print:m-0 print:p-0">
       {/* Header with Export Controls */}
@@ -63,11 +119,11 @@ export function ReportPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={handlePrint}>
-            <Printer className="h-4 w-4" /> Print / Save PDF
+          <Button variant="secondary" onClick={handlePrint} title="Generate printable visual document or browser PDF">
+            <Printer className="h-4 w-4 mr-1.5" /> Print / Save PDF
           </Button>
-          <Button onClick={handlePrint}>
-            <Download className="h-4 w-4" /> Export Report
+          <Button onClick={handleExportJson} title="Download machine-readable JSON data for CI/CD or Jira">
+            <Download className="h-4 w-4 mr-1.5" /> Export JSON Report
           </Button>
         </div>
       </div>
