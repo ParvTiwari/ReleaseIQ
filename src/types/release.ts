@@ -124,8 +124,13 @@ export type TestCase = {
   area: "Smoke" | "Permissions" | "Location" | "Security" | "Privacy" | "Store Policy";
   priority: Severity;
   status: "Ready" | "Passed" | "Blocked" | "Needs review";
+  preconditions?: string;
   steps?: string[];
   expectedResult?: string;
+  actualResult?: string;
+  notes?: string;
+  executedBy?: string;
+  executedAt?: string;
 };
 
 export type CopyFinding = {

@@ -44,6 +44,9 @@ interface ReleaseContextType {
   handleUploadManifest: (manifest: ManifestArtifact) => void;
   handleUploadPrivacyPolicy: (policy: PrivacyPolicyArtifact) => void;
   handleToggleTestCaseStatus: (testCaseId: string) => void;
+  handleAddTestCase: (testCase: TestCase) => void;
+  handleUpdateTestCase: (testCase: TestCase) => void;
+  handleDeleteTestCase: (testCaseId: string) => void;
   handleToggleComplianceStatus: (checkId: string) => void;
   handleToggleCustomRuleStatus: (ruleId: string) => void;
   handleAddCustomRule: (rule: CustomPolicyRule) => void;
@@ -258,6 +261,38 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const handleAddTestCase = (newTestCase: TestCase) => {
+    setTestCasesByProject((current) => {
+      const existing = current[activeProjectId] ?? initialTestCases;
+      return {
+        ...current,
+        [activeProjectId]: [newTestCase, ...existing],
+      };
+    });
+  };
+
+  const handleUpdateTestCase = (updatedTestCase: TestCase) => {
+    setTestCasesByProject((current) => {
+      const existing = current[activeProjectId] ?? initialTestCases;
+      return {
+        ...current,
+        [activeProjectId]: existing.map((tc) =>
+          tc.id === updatedTestCase.id ? updatedTestCase : tc
+        ),
+      };
+    });
+  };
+
+  const handleDeleteTestCase = (testCaseId: string) => {
+    setTestCasesByProject((current) => {
+      const existing = current[activeProjectId] ?? initialTestCases;
+      return {
+        ...current,
+        [activeProjectId]: existing.filter((tc) => tc.id !== testCaseId),
+      };
+    });
+  };
+
   const handleAddCustomRule = (rule: CustomPolicyRule) => {
     setCustomRulesByProject((current) => {
       const updated: CustomPolicyRule[] = [rule, ...(current[activeProjectId] ?? [])];
@@ -290,6 +325,9 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         handleUploadManifest,
         handleUploadPrivacyPolicy,
         handleToggleTestCaseStatus,
+        handleAddTestCase,
+        handleUpdateTestCase,
+        handleDeleteTestCase,
         handleToggleComplianceStatus,
         handleToggleCustomRuleStatus,
         handleAddCustomRule,

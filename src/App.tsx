@@ -43,6 +43,9 @@ function MainWorkspaceLayout() {
     handleUploadManifest,
     handleUploadPrivacyPolicy,
     handleToggleTestCaseStatus,
+    handleAddTestCase,
+    handleUpdateTestCase,
+    handleDeleteTestCase,
     handleToggleComplianceStatus,
     handleToggleCustomRuleStatus,
     handleAddCustomRule,
@@ -135,6 +138,9 @@ function MainWorkspaceLayout() {
                 project={activeProject}
                 testCases={activeTestCases}
                 onToggleStatus={handleToggleTestCaseStatus}
+                onAddTestCase={handleAddTestCase}
+                onUpdateTestCase={handleUpdateTestCase}
+                onDeleteTestCase={handleDeleteTestCase}
               />
             }
           />

@@ -2,16 +2,22 @@ import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  Clock,
   Download,
   FileCheck2,
   FileText,
   Info,
+  ListChecks,
   MessageSquareText,
+  Play,
+  Plus,
   Search,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
   UploadCloud,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 import { copyFindings as defaultCopyFindings, historyItems as defaultHistoryItems } from "../data/mockRelease";
 import type {
   ComplianceFinding,
@@ -20,7 +26,9 @@ import type {
   Project,
   TestCase,
 } from "../types/release";
+import { NewTestCaseModal } from "./NewTestCaseModal";
 import { RuleInspectorModal } from "./RuleInspectorModal";
+import { TestCaseExecutionModal } from "./TestCaseExecutionModal";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -178,7 +186,7 @@ export function CompliancePage({
         />
       </section>
 
-      {/* Add Custom Rule Form Modal/Card */}
+      {/* Add Custom Rule Form */}
       {isAddingRule && (
         <Card className="border-primary ring-1 ring-primary/25">
           <CardHeader>
@@ -331,7 +339,7 @@ export function CompliancePage({
         </section>
       )}
 
-      {/* Interactive Rule Inspector & Remediation Modal */}
+      {/* Interactive Rule Inspector Modal */}
       {inspectingItem && (
         <RuleInspectorModal
           isOpen={!!inspectingItem}
@@ -352,19 +360,33 @@ export function TestCasesPage({
   project,
   testCases = [],
   onToggleStatus,
+  onAddTestCase,
+  onUpdateTestCase,
+  onDeleteTestCase,
 }: {
   project: Project;
   testCases?: TestCase[];
   onToggleStatus?: (id: string) => void;
+  onAddTestCase?: (testCase: TestCase) => void;
+  onUpdateTestCase?: (updated: TestCase) => void;
+  onDeleteTestCase?: (testCaseId: string) => void;
 }) {
+  const { user } = useAuth();
   const [filterArea, setFilterArea] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [runningTestCase, setRunningTestCase] = useState<TestCase | null>(null);
 
   const filteredTests = testCases.filter((tc) => {
     const matchesArea = filterArea === "All" || tc.area === filterArea;
     const matchesQuery = tc.title.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesArea && matchesQuery;
   });
+
+  const passedTestsCount = testCases.filter((tc) => tc.status === "Passed").length;
+  const blockedTestsCount = testCases.filter((tc) => tc.status === "Blocked").length;
+  const readyTestsCount = testCases.filter((tc) => tc.status === "Ready" || tc.status === "Needs review").length;
+  const passRate = testCases.length ? Math.round((passedTestsCount / testCases.length) * 100) : 0;
 
   const exportTestSuite = () => {
     const jsonStr = JSON.stringify(testCases, null, 2);
@@ -378,12 +400,57 @@ export function TestCasesPage({
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
-      <PageIntro project={project} eyebrow="Quality Assurance" title="Generated QA Validation Suite" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Quality Assurance</p>
+          <h2 className="mt-1 text-2xl font-semibold text-foreground">Generated QA Validation Suite</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Interactive step-by-step test execution for <span className="font-semibold text-foreground">{project.name}</span>.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setIsNewModalOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Add QA Test Case
+          </Button>
+        </div>
+      </div>
+
+      {/* QA Metric Summary Bar */}
+      <section className="grid gap-4 sm:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase font-medium">Total Test Cases</p>
+            <p className="text-2xl font-bold mt-1 text-foreground">{testCases.length}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Automated & manual checks</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase font-medium">Passed Validation</p>
+            <p className="text-2xl font-bold mt-1 text-emerald-600">{passedTestsCount}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{passRate}% QA confidence rate</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase font-medium">Failing / Blocked</p>
+            <p className="text-2xl font-bold mt-1 text-rose-600">{blockedTestsCount}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{blockedTestsCount > 0 ? "Requires fix before release" : "Zero failing tests"}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase font-medium">Pending Execution</p>
+            <p className="text-2xl font-bold mt-1 text-primary">{readyTestsCount}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Ready for verification</p>
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-1 bg-muted p-1 rounded-md text-xs">
-          {(["All", "Smoke", "Permissions", "Location", "Security", "Privacy"] as const).map((area) => (
+          {(["All", "Smoke", "Permissions", "Location", "Security", "Privacy", "Store Policy"] as const).map((area) => (
             <button
               type="button"
               key={area}
@@ -408,7 +475,7 @@ export function TestCasesPage({
             />
           </label>
           <Button variant="secondary" onClick={exportTestSuite}>
-            <Download className="h-4 w-4" /> Export Suite
+            <Download className="h-4 w-4 mr-1" /> Export Suite
           </Button>
         </div>
       </div>
@@ -417,32 +484,62 @@ export function TestCasesPage({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Release Validation Test Suite ({filteredTests.length})</CardTitle>
-            <span className="text-xs text-muted-foreground">Click status badge to toggle Pass/Fail</span>
+            <span className="text-xs text-muted-foreground">Click "Run / Step Runner" to verify checklist</span>
           </div>
         </CardHeader>
         <CardContent className="grid gap-3">
           {filteredTests.map((testCase) => (
             <div
               key={testCase.id}
-              className="grid gap-3 rounded-lg border border-border bg-card p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-center"
+              className="grid gap-3 rounded-lg border border-border bg-card p-4 md:grid-cols-[1fr_auto_auto_auto_auto] md:items-center hover:border-primary/40 transition"
             >
               <div className="space-y-1">
-                <p className="font-medium text-sm text-foreground">{testCase.title}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-sm text-foreground">{testCase.title}</p>
+                  <span className="text-[10px] text-muted-foreground font-mono">({testCase.id})</span>
+                </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="px-2 py-0.5 rounded bg-accent font-medium text-foreground">{testCase.area}</span>
-                  {testCase.expectedResult && <span>Expected: {testCase.expectedResult}</span>}
+                  {testCase.expectedResult && <span className="line-clamp-1 max-w-md">Expected: {testCase.expectedResult}</span>}
                 </div>
+                {testCase.executedBy && (
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1 pt-0.5">
+                    <Clock className="h-3 w-3 text-primary" /> Verified by <strong>{testCase.executedBy}</strong> ({testCase.executedAt})
+                  </p>
+                )}
               </div>
+
               <Badge tone={testCase.priority === "High" ? "danger" : "neutral"}>
                 {testCase.priority} Priority
               </Badge>
+
               <button
                 type="button"
                 onClick={() => onToggleStatus && onToggleStatus(testCase.id)}
                 className="cursor-pointer transition hover:opacity-80 focus:outline-none"
+                title="Toggle Quick Status"
               >
                 <Badge tone={toneForStatus(testCase.status)}>{testCase.status}</Badge>
               </button>
+
+              <Button
+                variant="secondary"
+                className="text-xs h-8"
+                onClick={() => setRunningTestCase(testCase)}
+              >
+                <Play className="h-3.5 w-3.5 mr-1 text-primary" /> Step Runner
+              </Button>
+
+              {onDeleteTestCase && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteTestCase(testCase.id)}
+                  className="p-1.5 text-muted-foreground hover:text-rose-600 transition"
+                  title="Delete Test Case"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           ))}
           {filteredTests.length === 0 && (
@@ -450,6 +547,30 @@ export function TestCasesPage({
           )}
         </CardContent>
       </Card>
+
+      {/* Step Runner Modal */}
+      {runningTestCase && (
+        <TestCaseExecutionModal
+          isOpen={!!runningTestCase}
+          onClose={() => setRunningTestCase(null)}
+          testCase={runningTestCase}
+          onUpdateTestCase={(updated) => {
+            if (onUpdateTestCase) onUpdateTestCase(updated);
+          }}
+          currentUserName={user?.name || "QA Engineer"}
+        />
+      )}
+
+      {/* New Test Case Modal */}
+      {isNewModalOpen && (
+        <NewTestCaseModal
+          isOpen={isNewModalOpen}
+          onClose={() => setIsNewModalOpen(false)}
+          onAddTestCase={(newTc) => {
+            if (onAddTestCase) onAddTestCase(newTc);
+          }}
+        />
+      )}
     </div>
   );
 }
