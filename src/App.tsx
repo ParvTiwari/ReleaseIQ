@@ -34,6 +34,9 @@ function MainWorkspaceLayout() {
     selectProject,
     createProject,
     saveAppDetails,
+    updateProject,
+    cloneProject,
+    deleteProject,
     activeManifest,
     activePrivacyPolicy,
     activeCompliance,
@@ -98,6 +101,10 @@ function MainWorkspaceLayout() {
                 projects={projects}
                 activeProjectId={activeProjectId}
                 onSelectProject={handleSelectProjectAndNavigate}
+                onUpdateProject={updateProject}
+                onCloneProject={cloneProject}
+                onDeleteProject={deleteProject}
+                onNewProject={() => setIsNewProjectOpen(true)}
               />
             }
           />

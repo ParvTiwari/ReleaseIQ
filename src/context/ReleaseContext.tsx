@@ -16,6 +16,7 @@ import type {
   ComplianceFinding,
   CustomPolicyRule,
   ManifestArtifact,
+  Platform,
   PrivacyPolicyArtifact,
   Project,
   RuleStatus,
@@ -29,6 +30,8 @@ interface ReleaseContextType {
   selectProject: (projectId: string) => void;
   createProject: (fields: NewProjectFields) => void;
   saveAppDetails: (details: Partial<Project>) => void;
+  updateProject: (projectId: string, updates: Partial<Project>) => void;
+  cloneProject: (sourceProjectId: string, newPlatform?: Platform) => void;
   deleteProject: (projectId: string) => void;
   manifestsByProject: Record<string, ManifestArtifact>;
   privacyPoliciesByProject: Record<string, PrivacyPolicyArtifact>;
@@ -85,6 +88,59 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
 
   const selectProject = (projectId: string) => {
     setActiveProjectId(projectId);
+  };
+
+  const updateProject = (projectId: string, updates: Partial<Project>) => {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === projectId ? { ...project, ...updates } : project
+      )
+    );
+  };
+
+  const cloneProject = (sourceProjectId: string, newPlatform?: Platform) => {
+    const source = projects.find((p) => p.id === sourceProjectId);
+    if (!source) return;
+
+    const targetPlatform = newPlatform || (source.platform === "Android" ? "iOS" : "Android");
+    const clonedId = `proj-${Date.now().toString(36)}`;
+    const clonedName = `${source.name} (${targetPlatform})`;
+    const clonedPackage = targetPlatform === "iOS"
+      ? `com.${source.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.ios`
+      : `com.${source.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.clone`;
+
+    const clonedProject: Project = {
+      ...source,
+      id: clonedId,
+      name: clonedName,
+      platform: targetPlatform,
+      packageId: clonedPackage,
+      status: "Needs review",
+      readinessScore: 70,
+    };
+
+    setProjects((current) => [clonedProject, ...current]);
+    if (testCasesByProject[sourceProjectId]) {
+      setTestCasesByProject((current) => ({
+        ...current,
+        [clonedId]: testCasesByProject[sourceProjectId].map((tc) => ({
+          ...tc,
+          id: `tc-cloned-${Date.now().toString(36).slice(-3)}-${tc.id.slice(-3)}`,
+          status: "Ready",
+        })),
+      }));
+    }
+    if (complianceByProject[sourceProjectId]) {
+      setComplianceByProject((current) => ({
+        ...current,
+        [clonedId]: complianceByProject[sourceProjectId].map((c) => ({
+          ...c,
+          status: "Warning",
+        })),
+      }));
+    }
+
+    setActiveProjectId(clonedId);
   };
 
   const deleteProject = (projectId: string) => {
@@ -310,6 +366,8 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         selectProject,
         createProject,
         saveAppDetails,
+        updateProject,
+        cloneProject,
         deleteProject,
         manifestsByProject,
         privacyPoliciesByProject,
