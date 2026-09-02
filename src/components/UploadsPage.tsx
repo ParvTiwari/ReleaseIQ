@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useId, useState, type ChangeEvent } from "react";
 import { defaultMockPermissions, defaultPrivacyClauses } from "../data/complianceRules";
+import { notifyModal, notifyToast } from "../lib/alerts";
 import type {
   ManifestArtifact,
   ParsedPermission,
@@ -92,6 +93,11 @@ export function UploadsPage({
     onUploadManifest(newArtifact);
     setManifestError("");
     event.target.value = "";
+    notifyModal({
+      title: "AndroidManifest.xml Parsed",
+      text: "Detected 4 permissions (1 High Risk permission requiring background declaration). Compliance audit updated.",
+      icon: "success",
+    });
   };
 
   const handlePrivacyPolicyFile = (event: ChangeEvent<HTMLInputElement>) => {
@@ -107,6 +113,11 @@ export function UploadsPage({
 
     onUploadPrivacyPolicy(newPolicy);
     event.target.value = "";
+    notifyModal({
+      title: "Privacy Policy Evaluated",
+      text: "Evaluated 4 data safety clauses against Google Play & App Store policy guidelines.",
+      icon: "success",
+    });
   };
 
   const submitPastedPolicy = () => {
@@ -121,8 +132,12 @@ export function UploadsPage({
     };
 
     onUploadPrivacyPolicy(newPolicy);
-    setIsPastingPolicy(false);
     setPastedPolicyText("");
+    setIsPastingPolicy(false);
+    notifyToast({
+      title: "Pasted Privacy Policy text saved & audited",
+      icon: "success",
+    });
   };
 
   const highRiskCount = manifest?.permissions.filter((p: ParsedPermission) => p.risk === "High").length ?? 0;

@@ -12,6 +12,7 @@ import {
   initialTestCases,
   projects as initialProjects,
 } from "../data/mockRelease";
+import { notifyModal, notifyToast } from "../lib/alerts";
 import type {
   ComplianceFinding,
   CustomPolicyRule,
@@ -141,6 +142,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     }
 
     setActiveProjectId(clonedId);
+    notifyToast({
+      title: `Cloned to ${targetPlatform} project`,
+      icon: "success",
+    });
   };
 
   const deleteProject = (projectId: string) => {
@@ -150,6 +155,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         setActiveProjectId(remaining[0].id);
       }
       return remaining;
+    });
+    notifyToast({
+      title: "Project removed from workspace",
+      icon: "error",
     });
   };
 
@@ -185,6 +194,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     }
     setActiveProjectId(project.id);
     setIsNewProjectOpen(false);
+    notifyToast({
+      title: `Created new project "${project.name}"`,
+      icon: "success",
+    });
   };
 
   const saveAppDetails = (details: Partial<Project>) => {
@@ -236,6 +249,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
       });
 
       recalculateProjectScore(updated, activeCustomRules);
+      notifyToast({
+        title: "Compliance check status updated",
+        icon: "info",
+      });
       return { ...current, [activeProjectId]: updated };
     });
   };
@@ -252,6 +269,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
       });
 
       recalculateProjectScore(activeCompliance, updated);
+      notifyToast({
+        title: "Custom rule status updated",
+        icon: "info",
+      });
       return { ...current, [activeProjectId]: updated };
     });
   };
@@ -309,6 +330,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
                 : tc.status === "Passed"
                   ? "Blocked"
                   : "Ready";
+            notifyToast({
+              title: `Test ${tc.id} marked as ${nextStatus}`,
+              icon: nextStatus === "Passed" ? "success" : nextStatus === "Blocked" ? "warning" : "info",
+            });
             return { ...tc, status: nextStatus };
           }
           return tc;
@@ -320,6 +345,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
   const handleAddTestCase = (newTestCase: TestCase) => {
     setTestCasesByProject((current) => {
       const existing = current[activeProjectId] ?? initialTestCases;
+      notifyToast({
+        title: `Added test case "${newTestCase.title}"`,
+        icon: "success",
+      });
       return {
         ...current,
         [activeProjectId]: [newTestCase, ...existing],
@@ -330,6 +359,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
   const handleUpdateTestCase = (updatedTestCase: TestCase) => {
     setTestCasesByProject((current) => {
       const existing = current[activeProjectId] ?? initialTestCases;
+      notifyToast({
+        title: `Updated test case "${updatedTestCase.title}"`,
+        icon: "success",
+      });
       return {
         ...current,
         [activeProjectId]: existing.map((tc) =>
@@ -342,6 +375,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
   const handleDeleteTestCase = (testCaseId: string) => {
     setTestCasesByProject((current) => {
       const existing = current[activeProjectId] ?? initialTestCases;
+      notifyToast({
+        title: "Test case removed from suite",
+        icon: "info",
+      });
       return {
         ...current,
         [activeProjectId]: existing.filter((tc) => tc.id !== testCaseId),
@@ -353,6 +390,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     setCustomRulesByProject((current) => {
       const updated: CustomPolicyRule[] = [rule, ...(current[activeProjectId] ?? [])];
       recalculateProjectScore(activeCompliance, updated);
+      notifyToast({
+        title: `Added custom rule "${rule.ruleName}"`,
+        icon: "success",
+      });
       return { ...current, [activeProjectId]: updated };
     });
   };

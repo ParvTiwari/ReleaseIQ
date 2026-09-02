@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { FileText, ShieldCheck, UploadCloud, CheckCircle2 } from "lucide-react";
 import { customPolicyPresets, type Platform, type Project } from "../data/mockRelease";
+import { notifyToast } from "../lib/alerts";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Badge } from "./ui/Badge";
@@ -63,11 +64,13 @@ export function AppDetails({ project, onSave }: { project: Project; onSave: (det
     const hasMissingRequiredField = Object.values(form).some((value) => !value.trim());
     if (hasMissingRequiredField) {
       setError("Complete all required app details before saving.");
+      notifyToast({ title: "Please fill in all required fields", icon: "warning" });
       return;
     }
     onSave(form);
     setError("");
     setSaved(true);
+    notifyToast({ title: "App details saved successfully", icon: "success" });
   };
 
   return (

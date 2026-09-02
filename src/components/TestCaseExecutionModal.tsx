@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { notifyModal, notifyToast } from "../lib/alerts";
 import type { TestCase } from "../types/release";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
@@ -89,11 +90,19 @@ export function TestCaseExecutionModal({
     };
 
     onUpdateTestCase(updated);
-    setSuccessToast(`Test case marked as "${newStatus}"!`);
-    setTimeout(() => {
-      setSuccessToast("");
-      onClose();
-    }, 1100);
+    onClose();
+    if (newStatus === "Passed") {
+      notifyModal({
+        title: "Test Verification Signed Off",
+        text: `Test case "${testCase.title}" (${testCase.id}) marked as Passed by ${currentUserName}.`,
+        icon: "success",
+      });
+    } else {
+      notifyToast({
+        title: `Test case marked as "${newStatus}"`,
+        icon: newStatus === "Blocked" ? "error" : "warning",
+      });
+    }
   };
 
   return (
