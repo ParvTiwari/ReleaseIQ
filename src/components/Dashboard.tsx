@@ -8,7 +8,9 @@ import {
   ShieldAlert,
   ShieldCheck,
 } from "lucide-react";
-import type { ComplianceFinding, Project, TestCase } from "../types/release";
+import { useState } from "react";
+import type { ComplianceFinding, CustomPolicyRule, Project, TestCase } from "../types/release";
+import { RuleInspectorModal } from "./RuleInspectorModal";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -30,6 +32,7 @@ export function Dashboard({
   onNavigateToUploads,
   onNavigateToTestCases,
   onNavigateToReport,
+  onToggleStatus,
 }: {
   activeProject: Project;
   projects: Project[];
@@ -40,8 +43,10 @@ export function Dashboard({
   onNavigateToUploads: () => void;
   onNavigateToTestCases: () => void;
   onNavigateToReport: () => void;
+  onToggleStatus?: (id: string) => void;
 }) {
   const isCustomPolicy = activeProject.platform === "Custom Policy" || !!activeProject.customPolicy;
+  const [inspectingFinding, setInspectingFinding] = useState<ComplianceFinding | CustomPolicyRule | null>(null);
 
   const displayFindings = isCustomPolicy && activeProject.customPolicy
     ? activeProject.customPolicy.rules.map((rule) => ({
@@ -50,6 +55,7 @@ export function Dashboard({
         status: rule.status,
         severity: rule.severity,
         owner: rule.category,
+        detail: rule.description,
       }))
     : complianceFindings;
 
@@ -172,7 +178,10 @@ export function Dashboard({
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader>
-            <CardTitle>{isCustomPolicy ? "Custom Policy Rule Findings" : "Compliance Findings"}</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>{isCustomPolicy ? "Custom Policy Rule Findings" : "Compliance Findings"}</CardTitle>
+              <span className="text-xs text-muted-foreground">Click row to inspect & fix</span>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -183,17 +192,34 @@ export function Dashboard({
                     <th className="px-5 py-3 font-medium">Status</th>
                     <th className="px-5 py-3 font-medium">Severity</th>
                     <th className="px-5 py-3 font-medium">Category / Owner</th>
+                    <th className="px-5 py-3 font-medium text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {displayFindings.map((check) => (
-                    <tr key={check.title} className="border-b border-border last:border-0">
-                      <td className="px-5 py-4 font-medium">{check.title}</td>
+                    <tr
+                      key={check.id || check.title}
+                      className="border-b border-border last:border-0 hover:bg-accent/40 cursor-pointer transition"
+                      onClick={() => setInspectingFinding(check as any)}
+                    >
+                      <td className="px-5 py-4 font-medium text-foreground">{check.title}</td>
                       <td className="px-5 py-4">
                         <Badge tone={toneForStatus(check.status)}>{check.status}</Badge>
                       </td>
                       <td className="px-5 py-4 text-muted-foreground">{check.severity}</td>
                       <td className="px-5 py-4 text-muted-foreground">{check.owner}</td>
+                      <td className="px-5 py-4 text-right">
+                        <Button
+                          variant="ghost"
+                          className="text-xs h-7 px-2 font-semibold"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInspectingFinding(check as any);
+                          }}
+                        >
+                          Inspect
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -267,6 +293,20 @@ export function Dashboard({
           </button>
         ))}
       </section>
+
+      {/* Interactive Rule Inspector Modal */}
+      {inspectingFinding && (
+        <RuleInspectorModal
+          isOpen={!!inspectingFinding}
+          onClose={() => setInspectingFinding(null)}
+          finding={inspectingFinding}
+          isCustomPolicy={isCustomPolicy}
+          project={activeProject}
+          onToggleStatus={(id) => {
+            if (onToggleStatus) onToggleStatus(id);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import type {
   ManifestArtifact,
   PrivacyPolicyArtifact,
   Project,
+  RuleStatus,
   TestCase,
 } from "../types/release";
 
@@ -28,6 +29,7 @@ interface ReleaseContextType {
   selectProject: (projectId: string) => void;
   createProject: (fields: NewProjectFields) => void;
   saveAppDetails: (details: Partial<Project>) => void;
+  deleteProject: (projectId: string) => void;
   manifestsByProject: Record<string, ManifestArtifact>;
   privacyPoliciesByProject: Record<string, PrivacyPolicyArtifact>;
   complianceByProject: Record<string, ComplianceFinding[]>;
@@ -42,6 +44,8 @@ interface ReleaseContextType {
   handleUploadManifest: (manifest: ManifestArtifact) => void;
   handleUploadPrivacyPolicy: (policy: PrivacyPolicyArtifact) => void;
   handleToggleTestCaseStatus: (testCaseId: string) => void;
+  handleToggleComplianceStatus: (checkId: string) => void;
+  handleToggleCustomRuleStatus: (ruleId: string) => void;
   handleAddCustomRule: (rule: CustomPolicyRule) => void;
   isNewProjectOpen: boolean;
   setIsNewProjectOpen: (open: boolean) => void;
@@ -78,6 +82,16 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
 
   const selectProject = (projectId: string) => {
     setActiveProjectId(projectId);
+  };
+
+  const deleteProject = (projectId: string) => {
+    setProjects((current) => {
+      const remaining = current.filter((p) => p.id !== projectId);
+      if (remaining.length > 0 && activeProjectId === projectId) {
+        setActiveProjectId(remaining[0].id);
+      }
+      return remaining;
+    });
   };
 
   const createProject = (fields: NewProjectFields) => {
@@ -122,6 +136,67 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const recalculateProjectScore = (findings: ComplianceFinding[], customRulesList: CustomPolicyRule[]) => {
+    const isCustom = activeProject.platform === "Custom Policy";
+    let blockedCount = 0;
+    let passedCount = 0;
+    let total = 0;
+
+    if (isCustom) {
+      total = customRulesList.length || 1;
+      blockedCount = customRulesList.filter((r) => r.status === "Blocked").length;
+      passedCount = customRulesList.filter((r) => r.status === "Passed").length;
+    } else {
+      total = findings.length || 1;
+      blockedCount = findings.filter((f) => f.status === "Blocked").length;
+      passedCount = findings.filter((f) => f.status === "Passed").length;
+    }
+
+    const calculatedScore = Math.round((passedCount / total) * 100);
+    const newStatus: Project["status"] =
+      blockedCount > 0 ? "Blocked" : calculatedScore >= 80 ? "Ready" : "Needs review";
+
+    setProjects((current) =>
+      current.map((p) =>
+        p.id === activeProjectId
+          ? { ...p, readinessScore: calculatedScore, status: newStatus }
+          : p
+      )
+    );
+  };
+
+  const handleToggleComplianceStatus = (checkId: string) => {
+    setComplianceByProject((current) => {
+      const existing = current[activeProjectId] ?? initialChecks;
+      const updated: ComplianceFinding[] = existing.map((check) => {
+        if (check.id === checkId || check.title.toLowerCase() === checkId.toLowerCase()) {
+          const nextStatus: RuleStatus = check.status === "Passed" ? "Blocked" : "Passed";
+          return { ...check, status: nextStatus };
+        }
+        return check;
+      });
+
+      recalculateProjectScore(updated, activeCustomRules);
+      return { ...current, [activeProjectId]: updated };
+    });
+  };
+
+  const handleToggleCustomRuleStatus = (ruleId: string) => {
+    setCustomRulesByProject((current) => {
+      const existing = current[activeProjectId] ?? activeProject.customPolicy?.rules ?? [];
+      const updated: CustomPolicyRule[] = existing.map((rule) => {
+        if (rule.id === ruleId) {
+          const nextStatus: RuleStatus = rule.status === "Passed" ? "Blocked" : "Passed";
+          return { ...rule, status: nextStatus };
+        }
+        return rule;
+      });
+
+      recalculateProjectScore(activeCompliance, updated);
+      return { ...current, [activeProjectId]: updated };
+    });
+  };
+
   const handleUploadManifest = (manifest: ManifestArtifact) => {
     setManifestsByProject((current) => ({
       ...current,
@@ -134,27 +209,14 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
 
     setComplianceByProject((current) => {
       const existing = current[activeProjectId] ?? initialChecks;
-      return {
-        ...current,
-        [activeProjectId]: existing.map((check) =>
-          check.id === "chk-2" || check.title.toLowerCase().includes("location")
-            ? { ...check, status: hasLocationRisk ? "Blocked" : "Passed" }
-            : check
-        ),
-      };
+      const updated: ComplianceFinding[] = existing.map((check) =>
+        check.id === "chk-2" || check.title.toLowerCase().includes("location")
+          ? { ...check, status: (hasLocationRisk ? "Blocked" : "Passed") as RuleStatus }
+          : check
+      );
+      recalculateProjectScore(updated, activeCustomRules);
+      return { ...current, [activeProjectId]: updated };
     });
-
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === activeProjectId
-          ? {
-              ...project,
-              readinessScore: Math.min(95, project.readinessScore + 10),
-              status: hasLocationRisk ? "Blocked" : "Ready",
-            }
-          : project
-      )
-    );
   };
 
   const handleUploadPrivacyPolicy = (policy: PrivacyPolicyArtifact) => {
@@ -165,26 +227,14 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
 
     setComplianceByProject((current) => {
       const existing = current[activeProjectId] ?? initialChecks;
-      return {
-        ...current,
-        [activeProjectId]: existing.map((check) =>
-          check.id === "chk-1" || check.title.toLowerCase().includes("privacy")
-            ? { ...check, status: "Passed" }
-            : check
-        ),
-      };
+      const updated: ComplianceFinding[] = existing.map((check) =>
+        check.id === "chk-1" || check.title.toLowerCase().includes("privacy")
+          ? { ...check, status: "Passed" as RuleStatus }
+          : check
+      );
+      recalculateProjectScore(updated, activeCustomRules);
+      return { ...current, [activeProjectId]: updated };
     });
-
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === activeProjectId
-          ? {
-              ...project,
-              readinessScore: Math.min(100, project.readinessScore + 8),
-            }
-          : project
-      )
-    );
   };
 
   const handleToggleTestCaseStatus = (testCaseId: string) => {
@@ -209,10 +259,11 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
   };
 
   const handleAddCustomRule = (rule: CustomPolicyRule) => {
-    setCustomRulesByProject((current) => ({
-      ...current,
-      [activeProjectId]: [rule, ...(current[activeProjectId] ?? [])],
-    }));
+    setCustomRulesByProject((current) => {
+      const updated: CustomPolicyRule[] = [rule, ...(current[activeProjectId] ?? [])];
+      recalculateProjectScore(activeCompliance, updated);
+      return { ...current, [activeProjectId]: updated };
+    });
   };
 
   return (
@@ -224,6 +275,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         selectProject,
         createProject,
         saveAppDetails,
+        deleteProject,
         manifestsByProject,
         privacyPoliciesByProject,
         complianceByProject,
@@ -238,6 +290,8 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         handleUploadManifest,
         handleUploadPrivacyPolicy,
         handleToggleTestCaseStatus,
+        handleToggleComplianceStatus,
+        handleToggleCustomRuleStatus,
         handleAddCustomRule,
         isNewProjectOpen,
         setIsNewProjectOpen,

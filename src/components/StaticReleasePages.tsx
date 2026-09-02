@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   UploadCloud,
 } from "lucide-react";
+import { copyFindings as defaultCopyFindings, historyItems as defaultHistoryItems } from "../data/mockRelease";
 import type {
   ComplianceFinding,
   CustomPolicyRule,
@@ -19,7 +20,7 @@ import type {
   Project,
   TestCase,
 } from "../types/release";
-import { copyFindings as defaultCopyFindings, historyItems as defaultHistoryItems } from "../data/mockRelease";
+import { RuleInspectorModal } from "./RuleInspectorModal";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -66,17 +67,21 @@ export function CompliancePage({
   complianceFindings = [],
   customRules = [],
   onAddCustomRule,
+  onToggleStatus,
 }: {
   project: Project;
   complianceFindings?: ComplianceFinding[];
   customRules?: CustomPolicyRule[];
   onAddCustomRule?: (rule: CustomPolicyRule) => void;
+  onToggleStatus?: (id: string) => void;
 }) {
   const isCustomPolicy = project.platform === "Custom Policy" || !!project.customPolicy;
   const customPolicy = project.customPolicy;
 
   const [ruleFilter, setRuleFilter] = useState<"All" | "Passed" | "Warning" | "Blocked">("All");
   const [isAddingRule, setIsAddingRule] = useState(false);
+  const [inspectingItem, setInspectingItem] = useState<ComplianceFinding | CustomPolicyRule | null>(null);
+
   const [newRule, setNewRule] = useState({
     ruleName: "",
     category: "Security",
@@ -278,6 +283,13 @@ export function CompliancePage({
                 </div>
                 <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                   <Badge tone={toneForStatus(rule.status)}>{rule.status}</Badge>
+                  <Button
+                    variant="ghost"
+                    className="text-xs"
+                    onClick={() => setInspectingItem(rule)}
+                  >
+                    Inspect & Fix
+                  </Button>
                 </div>
               </div>
             ))}
@@ -289,7 +301,7 @@ export function CompliancePage({
       ) : (
         <section className="grid gap-4 lg:grid-cols-2">
           {complianceFindings.map((item) => (
-            <Card key={item.id || item.title} className={item.status === "Blocked" ? "border-rose-200" : ""}>
+            <Card key={item.id || item.title} className={item.status === "Blocked" ? "border-rose-200 shadow-sm" : ""}>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -305,12 +317,32 @@ export function CompliancePage({
                 )}
                 <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground uppercase tracking-wider">
                   <span>Owner: <strong className="text-foreground">{item.owner}</strong></span>
-                  <span>Severity: <strong className={item.severity === "High" ? "text-rose-600" : "text-foreground"}>{item.severity}</strong></span>
+                  <Button
+                    variant="ghost"
+                    className="text-xs font-semibold h-7 px-2"
+                    onClick={() => setInspectingItem(item)}
+                  >
+                    Inspect & Remediate
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </section>
+      )}
+
+      {/* Interactive Rule Inspector & Remediation Modal */}
+      {inspectingItem && (
+        <RuleInspectorModal
+          isOpen={!!inspectingItem}
+          onClose={() => setInspectingItem(null)}
+          finding={inspectingItem}
+          isCustomPolicy={isCustomPolicy}
+          project={project}
+          onToggleStatus={(id) => {
+            if (onToggleStatus) onToggleStatus(id);
+          }}
+        />
       )}
     </div>
   );
@@ -385,7 +417,7 @@ export function TestCasesPage({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Release Validation Test Suite ({filteredTests.length})</CardTitle>
-            <span className="text-xs text-muted-foreground">Click status to toggle</span>
+            <span className="text-xs text-muted-foreground">Click status badge to toggle Pass/Fail</span>
           </div>
         </CardHeader>
         <CardContent className="grid gap-3">
@@ -411,9 +443,6 @@ export function TestCasesPage({
               >
                 <Badge tone={toneForStatus(testCase.status)}>{testCase.status}</Badge>
               </button>
-              <Button variant="ghost" className="text-xs">
-                Inspect
-              </Button>
             </div>
           ))}
           {filteredTests.length === 0 && (

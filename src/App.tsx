@@ -38,6 +38,8 @@ function AppContent() {
     handleUploadManifest,
     handleUploadPrivacyPolicy,
     handleToggleTestCaseStatus,
+    handleToggleComplianceStatus,
+    handleToggleCustomRuleStatus,
     handleAddCustomRule,
     isNewProjectOpen,
     setIsNewProjectOpen,
@@ -46,6 +48,14 @@ function AppContent() {
   const handleSelectProjectAndNavigate = (id: string) => {
     selectProject(id);
     navigate("/dashboard");
+  };
+
+  const handleToggleRuleStatus = (id: string) => {
+    if (activeProject.platform === "Custom Policy") {
+      handleToggleCustomRuleStatus(id);
+    } else {
+      handleToggleComplianceStatus(id);
+    }
   };
 
   return (
@@ -69,6 +79,7 @@ function AppContent() {
                 onNavigateToUploads={() => navigate("/uploads")}
                 onNavigateToTestCases={() => navigate("/test-cases")}
                 onNavigateToReport={() => navigate("/reports")}
+                onToggleStatus={handleToggleRuleStatus}
               />
             }
           />
@@ -108,6 +119,7 @@ function AppContent() {
                 complianceFindings={activeCompliance}
                 customRules={activeCustomRules}
                 onAddCustomRule={handleAddCustomRule}
+                onToggleStatus={handleToggleRuleStatus}
               />
             }
           />
