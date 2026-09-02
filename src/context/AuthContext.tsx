@@ -17,6 +17,8 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<boolean>;
 }
 
+const STORAGE_KEY = "releaseiq_auth_user";
+
 const defaultUser: UserProfile = {
   id: "usr-parv",
   name: "Parv Tiwari",
@@ -31,7 +33,17 @@ const defaultUser: UserProfile = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(defaultUser);
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved !== null) {
+        return saved === "null" ? null : JSON.parse(saved);
+      }
+    } catch {
+      // ignore storage parsing error
+    }
+    return defaultUser;
+  });
 
   const getInitials = (name: string) => {
     return name
@@ -40,6 +52,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .join("")
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const persistUser = (newUser: UserProfile | null) => {
+    setUser(newUser);
+    try {
+      if (newUser) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+      } else {
+        localStorage.setItem(STORAGE_KEY, "null");
+      }
+    } catch {
+      // ignore storage error
+    }
   };
 
   const signIn = (email: string, role: UserRole = "Project Owner", name?: string) => {
@@ -54,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       joinedDate: "August 2026",
       twoFactorEnabled: false,
     };
-    setUser(signedInUser);
+    persistUser(signedInUser);
   };
 
   const signUp = (name: string, email: string, role: UserRole, organization = "Acme Corp") => {
@@ -68,21 +93,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       joinedDate: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
       twoFactorEnabled: false,
     };
-    setUser(newUser);
+    persistUser(newUser);
   };
 
   const signOut = () => {
-    setUser(null);
+    persistUser(null);
   };
 
   const switchRole = (newRole: UserRole) => {
     if (!user) return;
-    setUser({ ...user, role: newRole });
+    persistUser({ ...user, role: newRole });
   };
 
   const updateProfile = (updates: Partial<UserProfile>) => {
     if (!user) return;
-    setUser({
+    persistUser({
       ...user,
       ...updates,
       avatarInitials: updates.name ? getInitials(updates.name) : user.avatarInitials,

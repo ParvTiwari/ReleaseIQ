@@ -1,6 +1,6 @@
-import { LockKeyhole, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { LockKeyhole, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import type { UserRole } from "../../types/release";
 import { Button } from "../ui/Button";
@@ -8,6 +8,7 @@ import { Card, CardContent } from "../ui/Card";
 
 export function SignUpPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signUp } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -16,11 +17,13 @@ export function SignUpPage() {
   const [role, setRole] = useState<UserRole>("Project Owner");
   const [agreed, setAgreed] = useState(true);
 
+  const fromPath = (location.state as { from?: { pathname?: string } })?.from?.pathname || "/dashboard";
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!name || !email || !password || !agreed) return;
     signUp(name, email, role, organization || "ReleaseIQ Technologies");
-    navigate("/dashboard");
+    navigate(fromPath, { replace: true });
   };
 
   return (

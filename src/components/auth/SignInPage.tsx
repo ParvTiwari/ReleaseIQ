@@ -1,6 +1,6 @@
-import { LockKeyhole, ShieldCheck, UserCheck, ArrowRight } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { LockKeyhole, ShieldCheck, UserCheck, ArrowRight } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import type { UserRole } from "../../types/release";
 import { Button } from "../ui/Button";
@@ -8,21 +8,24 @@ import { Card, CardContent } from "../ui/Card";
 
 export function SignInPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole>("Project Owner");
 
+  const fromPath = (location.state as { from?: { pathname?: string } })?.from?.pathname || "/dashboard";
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!email) return;
     signIn(email, selectedRole);
-    navigate("/dashboard");
+    navigate(fromPath, { replace: true });
   };
 
   const handleQuickSignIn = (role: UserRole, demoEmail: string, demoName: string) => {
     signIn(demoEmail, role, demoName);
-    navigate("/dashboard");
+    navigate(fromPath, { replace: true });
   };
 
   return (

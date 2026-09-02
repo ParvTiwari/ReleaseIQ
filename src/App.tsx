@@ -9,6 +9,7 @@ import { AppDetails } from "./components/AppDetails";
 import { AppShell } from "./components/AppShell";
 import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
 import { ProfilePage } from "./components/auth/ProfilePage";
+import { ProtectedRoute, PublicOnlyRoute } from "./components/auth/ProtectedRoute";
 import { SignInPage } from "./components/auth/SignInPage";
 import { SignUpPage } from "./components/auth/SignUpPage";
 import { Dashboard } from "./components/Dashboard";
@@ -198,10 +199,38 @@ export default function App() {
       <AuthProvider>
         <ReleaseProvider>
           <Routes>
-            <Route path="/signin" element={<SignInPage />} />
-            <Route path="/signup" element={<SignUpPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/*" element={<MainWorkspaceLayout />} />
+            <Route
+              path="/signin"
+              element={
+                <PublicOnlyRoute>
+                  <SignInPage />
+                </PublicOnlyRoute>
+              }
+            />
+            <Route
+              path="/signup"
+              element={
+                <PublicOnlyRoute>
+                  <SignUpPage />
+                </PublicOnlyRoute>
+              }
+            />
+            <Route
+              path="/forgot-password"
+              element={
+                <PublicOnlyRoute>
+                  <ForgotPasswordPage />
+                </PublicOnlyRoute>
+              }
+            />
+            <Route
+              path="/*"
+              element={
+                <ProtectedRoute>
+                  <MainWorkspaceLayout />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </ReleaseProvider>
       </AuthProvider>
