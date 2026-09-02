@@ -1,12 +1,32 @@
-import { FileText, ShieldCheck, UploadCloud, X, CheckCircle2, AlertCircle } from "lucide-react";
-import { useState, type FormEvent, type ChangeEvent } from "react";
+import { AlertCircle, CheckCircle2, FileText, ShieldCheck, UploadCloud, X } from "lucide-react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import { customPolicyPresets, type CustomPolicy, type Platform, type Project } from "../data/mockRelease";
-import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
+import { Button } from "./ui/Button";
 
 export type NewProjectFields = Pick<Project, "name" | "platform" | "description" | "releaseTarget"> & {
+  category?: string;
   customPolicy?: CustomPolicy;
 };
+
+export const storeCategories = [
+  { id: "Health & Fitness", name: "Health & Fitness (Workout, Vitals, Nutrition)" },
+  { id: "Navigation & Maps", name: "Navigation, Maps & GPS (Live Tracking, Turn-by-Turn)" },
+  { id: "Travel & Local", name: "Travel & Local (Flight, Hotel, Transit, City Guides)" },
+  { id: "Finance & Banking", name: "Finance & Banking (Payments, Crypto, Wallets)" },
+  { id: "Shopping & E-Commerce", name: "Shopping & E-Commerce (Retail, Marketplace)" },
+  { id: "Social & Communication", name: "Social & Communication (Messaging, Video Chat)" },
+  { id: "Productivity & Tools", name: "Productivity & Tools (Utilities, Task Managers)" },
+  { id: "Medical & Healthcare", name: "Medical & Healthcare (EHR, Telehealth, Clinical)" },
+  { id: "Entertainment & Media", name: "Entertainment, Music & Streaming" },
+  { id: "Education & Reference", name: "Education, Learning & Reference" },
+  { id: "Food & Drink", name: "Food & Drink (Delivery, Restaurants, Recipes)" },
+  { id: "Business & Enterprise", name: "Business, B2B & Enterprise" },
+  { id: "Photography & Video", name: "Photography, Camera & Video Editing" },
+  { id: "Games & Interactive", name: "Games & Interactive Entertainment" },
+  { id: "Security & Governance", name: "Security, Governance & Custom Compliance" },
+  { id: "Other", name: "Other / Custom Application" },
+];
 
 const platforms: Array<{ label: Platform; iconName: string; desc: string }> = [
   { label: "Android", iconName: "Play Store", desc: "Google Play Store submission guidelines" },
@@ -19,7 +39,6 @@ const platforms: Array<{ label: Platform; iconName: string; desc: string }> = [
   { label: "Custom Policy", iconName: "Custom Engine", desc: "Upload custom rulebook & evaluate compliance" },
 ];
 
-
 export function NewProjectModal({
   onClose,
   onCreate,
@@ -30,6 +49,7 @@ export function NewProjectModal({
   const [form, setForm] = useState<NewProjectFields>({
     name: "",
     platform: "Android",
+    category: "Health & Fitness",
     description: "",
     releaseTarget: "",
   });
@@ -74,13 +94,14 @@ export function NewProjectModal({
 
     onCreate({
       ...form,
+      category: form.platform === "Custom Policy" ? "Security & Governance" : form.category || "Productivity & Tools",
       customPolicy: finalCustomPolicy,
     });
   };
 
   return (
     <div
-      className="fixed inset-0 z-30 grid place-items-center bg-foreground/40 p-4 backdrop-blur-xs overflow-y-auto"
+      className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4 backdrop-blur-xs overflow-y-auto"
       role="presentation"
       onMouseDown={onClose}
     >
@@ -96,7 +117,7 @@ export function NewProjectModal({
               Create a Project
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Select a target publishing platform or upload a custom policy document.
+              Configure your application target platform, store category, and release milestone.
             </p>
           </div>
           <Button type="button" variant="ghost" className="h-8 w-8 px-0" onClick={onClose} title="Close">
@@ -112,24 +133,44 @@ export function NewProjectModal({
               value={form.name}
               onChange={(event) => update("name", event.target.value)}
               className="h-10 rounded-md border border-border bg-background px-3 font-normal outline-none focus:ring-2 focus:ring-primary/25"
-              placeholder="e.g. Enterprise Cloud Vault, PulseFit Android"
+              placeholder="e.g. PulseFit Tracker, Wayfinder Maps, CloudVault"
             />
           </label>
 
-          <div className="grid gap-1.5 text-sm font-medium">
-            <label htmlFor="platform-select">Publishing Platform / Site <span className="text-rose-500">*</span></label>
-            <select
-              id="platform-select"
-              value={form.platform}
-              onChange={(event) => update("platform", event.target.value as Platform)}
-              className="h-11 rounded-md border border-border bg-background px-3 font-medium outline-none focus:ring-2 focus:ring-primary/25"
-            >
-              {platforms.map((p) => (
-                <option key={p.label} value={p.label}>
-                  {p.label} — {p.desc}
-                </option>
-              ))}
-            </select>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid gap-1.5 text-sm font-medium">
+              <label htmlFor="platform-select">Publishing Platform / Store <span className="text-rose-500">*</span></label>
+              <select
+                id="platform-select"
+                value={form.platform}
+                onChange={(event) => update("platform", event.target.value as Platform)}
+                className="h-10 rounded-md border border-border bg-background px-3 font-medium outline-none focus:ring-2 focus:ring-primary/25 text-xs"
+              >
+                {platforms.map((p) => (
+                  <option key={p.label} value={p.label}>
+                    {p.label} ({p.iconName})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Store App Category Selector */}
+            <div className="grid gap-1.5 text-sm font-medium">
+              <label htmlFor="category-select">Store App Category <span className="text-rose-500">*</span></label>
+              <select
+                id="category-select"
+                value={form.category}
+                disabled={form.platform === "Custom Policy"}
+                onChange={(event) => update("category", event.target.value)}
+                className="h-10 rounded-md border border-border bg-background px-3 font-medium outline-none focus:ring-2 focus:ring-primary/25 text-xs"
+              >
+                {storeCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Special UI when Custom Policy platform is selected */}
@@ -235,7 +276,7 @@ export function NewProjectModal({
               value={form.description}
               onChange={(event) => update("description", event.target.value)}
               className="min-h-20 rounded-md border border-border bg-background px-3 py-2 font-normal outline-none focus:ring-2 focus:ring-primary/25"
-              placeholder="What is this release or policy evaluation target for?"
+              placeholder="Describe app functionality, sensitive permissions needed (e.g. background GPS), and release goals."
             />
           </label>
 
@@ -263,4 +304,3 @@ export function NewProjectModal({
     </div>
   );
 }
-

@@ -3,6 +3,7 @@ import {
   Check,
   ChevronDown,
   ClipboardCheck,
+  Command,
   FileCheck2,
   FilePenLine,
   FileText,
@@ -18,10 +19,11 @@ import {
   User,
   UserCheck,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import type { AppPage, UserRole } from "../types/release";
+import type { AppPage, Project, UserRole } from "../types/release";
+import { CommandPalette } from "./CommandPalette";
 import { Button } from "./ui/Button";
 
 const navItems: Array<{ label: string; icon: typeof LayoutDashboard; path: string; page: AppPage }> = [
@@ -53,18 +55,37 @@ const pageTitles: Record<string, string> = {
 export function AppShell({
   children,
   openBlockersCount = 0,
+  projects = [],
+  activeProjectId = "",
+  onSelectProject,
   onNewProject,
 }: {
   children: ReactNode;
   openBlockersCount?: number;
+  projects?: Project[];
+  activeProjectId?: string;
+  onSelectProject?: (projectId: string) => void;
   onNewProject: () => void;
 }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut, switchRole } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   const currentTitle = pageTitles[location.pathname] ?? "Release Readiness Dashboard";
+
+  // Global Ctrl+K / Cmd+K listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleSignOut = () => {
     signOut();
@@ -128,12 +149,18 @@ export function AppShell({
               <h1 className="text-lg font-semibold sm:text-xl">{currentTitle}</h1>
             </div>
 
-            <div className="hidden min-w-0 max-w-md flex-1 items-center rounded-md border border-border bg-card px-3 py-2 md:flex">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <input
-                className="ml-2 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                placeholder="Search projects, findings, reports..."
-              />
+            {/* Spotlight Command Search Bar Trigger */}
+            <div
+              onClick={() => setIsCommandPaletteOpen(true)}
+              className="hidden min-w-0 max-w-md flex-1 items-center justify-between rounded-lg border border-border bg-card px-3 py-2 cursor-pointer hover:border-primary/40 transition md:flex shadow-xs"
+            >
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <span>Search projects, store guidelines, rules, QA tests...</span>
+              </div>
+              <kbd className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                <Command className="h-2.5 w-2.5" /> K
+              </kbd>
             </div>
 
             <div className="flex items-center gap-2">
@@ -170,7 +197,7 @@ export function AppShell({
                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
 
-                  {/* Profile Menu Dropdown Modal */}
+                  {/* Profile Menu Dropdown */}
                   {isProfileOpen && (
                     <div
                       className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-card p-3 shadow-xl z-50 animate-in fade-in zoom-in-95 space-y-3"
@@ -242,6 +269,21 @@ export function AppShell({
         </header>
         <main className="px-4 py-6 sm:px-6">{children}</main>
       </div>
+
+      {/* Global Command Palette Spotlight (Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onSelectProject={(id) => {
+          if (onSelectProject) onSelectProject(id);
+        }}
+        onNewProject={() => {
+          setIsCommandPaletteOpen(false);
+          onNewProject();
+        }}
+      />
     </div>
   );
 }

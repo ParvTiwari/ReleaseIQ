@@ -1,6 +1,7 @@
 import { FilePenLine, Save, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import type { Platform, Project } from "../types/release";
+import { storeCategories } from "./NewProjectModal";
 import { Button } from "./ui/Button";
 
 export function EditProjectModal({
@@ -18,7 +19,7 @@ export function EditProjectModal({
   const [platform, setPlatform] = useState<Platform>("Android");
   const [packageId, setPackageId] = useState("");
   const [version, setVersion] = useState("1.0.0");
-  const [category, setCategory] = useState("Productivity");
+  const [category, setCategory] = useState("Health & Fitness");
   const [releaseTarget, setReleaseTarget] = useState("");
   const [description, setDescription] = useState("");
   const [releaseNotes, setReleaseNotes] = useState("");
@@ -134,12 +135,18 @@ export function EditProjectModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Category</label>
-              <input
+              <label className="text-xs font-semibold text-foreground">Store Category</label>
+              <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/25"
-              />
+                className="w-full h-10 rounded-md border border-border bg-background px-2 text-xs font-medium outline-none focus:ring-2 focus:ring-primary/25"
+              >
+                {storeCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.id}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

@@ -73,6 +73,9 @@ function MainWorkspaceLayout() {
     <>
       <AppShell
         openBlockersCount={openBlockersCount}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onSelectProject={handleSelectProjectAndNavigate}
         onNewProject={() => setIsNewProjectOpen(true)}
       >
         <Routes>
