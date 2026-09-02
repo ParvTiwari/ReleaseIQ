@@ -2,13 +2,13 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
+  FileText,
   FileUp,
   ListChecks,
   ShieldAlert,
   ShieldCheck,
-  FileText,
 } from "lucide-react";
-import { checks as defaultChecks, dashboardStats, testCases, type Project } from "../data/mockRelease";
+import type { ComplianceFinding, Project, TestCase } from "../types/release";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -23,24 +23,38 @@ function toneForStatus(status: string) {
 export function Dashboard({
   activeProject,
   projects,
+  complianceFindings = [],
+  testCases = [],
   onSelectProject,
   onViewProjects,
+  onNavigateToUploads,
+  onNavigateToTestCases,
+  onNavigateToReport,
 }: {
   activeProject: Project;
   projects: Project[];
+  complianceFindings?: ComplianceFinding[];
+  testCases?: TestCase[];
   onSelectProject: (projectId: string) => void;
   onViewProjects: () => void;
+  onNavigateToUploads: () => void;
+  onNavigateToTestCases: () => void;
+  onNavigateToReport: () => void;
 }) {
   const isCustomPolicy = activeProject.platform === "Custom Policy" || !!activeProject.customPolicy;
 
   const displayFindings = isCustomPolicy && activeProject.customPolicy
     ? activeProject.customPolicy.rules.map((rule) => ({
+        id: rule.id,
         title: rule.ruleName,
         status: rule.status,
         severity: rule.severity,
         owner: rule.category,
       }))
-    : defaultChecks;
+    : complianceFindings;
+
+  const openBlockers = displayFindings.filter((f) => f.status === "Blocked").length;
+  const passedChecks = displayFindings.filter((f) => f.status === "Passed").length;
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -81,17 +95,18 @@ export function Dashboard({
               </div>
             </div>
           </div>
+
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button>
+            <Button onClick={onNavigateToUploads}>
               <FileUp className="h-4 w-4" />
-              {isCustomPolicy ? "Upload updated policy" : "Upload manifest"}
+              {isCustomPolicy ? "Upload updated policy" : "Upload manifest & policy"}
             </Button>
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={onNavigateToTestCases}>
               <ListChecks className="h-4 w-4" />
               Generate QA cases
             </Button>
-            <Button variant="ghost" onClick={onViewProjects}>
-              View projects
+            <Button variant="ghost" onClick={onNavigateToReport}>
+              View audit report
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -112,7 +127,7 @@ export function Dashboard({
                 : ["Upload artifacts", "Resolve blockers", "QA sign-off", "Generate final report"]
               ).map((step, index) => (
                 <div key={step} className="flex items-center gap-3">
-                  <div className={`h-2.5 w-2.5 rounded-full ${index < 2 ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                  <div className={`h-2.5 w-2.5 rounded-full ${index < 2 || (index === 2 && openBlockers === 0) ? "bg-primary" : "bg-muted-foreground/30"}`} />
                   <span className="text-sm">{step}</span>
                 </div>
               ))}
@@ -121,18 +136,39 @@ export function Dashboard({
         </Card>
       </section>
 
+      {/* Summary Stat Cards */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {dashboardStats.map((stat) => (
-          <Card key={stat.label}>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-              <p className="mt-2 text-2xl font-semibold">{stat.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{stat.detail}</p>
-            </CardContent>
-          </Card>
-        ))}
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Active Projects</p>
+            <p className="mt-2 text-2xl font-bold">{projects.length}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Multi-platform release suites</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Passed Checks</p>
+            <p className="mt-2 text-2xl font-bold text-emerald-600">{passedChecks}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Passing guideline criteria</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Open Blockers</p>
+            <p className="mt-2 text-2xl font-bold text-rose-600">{openBlockers}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{openBlockers > 0 ? "Requires remediation" : "No release blockers"}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Generated QA Cases</p>
+            <p className="mt-2 text-2xl font-bold text-primary">{testCases.length}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Validation suite active</p>
+          </CardContent>
+        </Card>
       </section>
 
+      {/* Findings Table and QA test previews */}
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader>
@@ -168,19 +204,28 @@ export function Dashboard({
 
         <Card>
           <CardHeader>
-            <CardTitle>QA Test Case Drafts</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>QA Test Suite Preview</CardTitle>
+              <Button variant="ghost" className="text-xs" onClick={onNavigateToTestCases}>
+                View all ({testCases.length})
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {testCases.map((item) => (
-              <div key={item} className="flex gap-3 rounded-md border border-border bg-background p-3">
+            {testCases.slice(0, 4).map((item) => (
+              <div key={item.id} className="flex items-start gap-3 rounded-md border border-border bg-background p-3">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none text-emerald-600" />
-                <p className="text-sm leading-5">{item}</p>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium leading-5">{item.title}</p>
+                  <span className="text-[10px] text-muted-foreground">{item.area} · {item.priority} Priority</span>
+                </div>
               </div>
             ))}
           </CardContent>
         </Card>
       </section>
 
+      {/* Project Switcher Grid */}
       <section className="grid gap-4 lg:grid-cols-3">
         {projects.map((project) => (
           <button
@@ -191,28 +236,28 @@ export function Dashboard({
             aria-label={`Open ${project.name}`}
           >
             <Card className={project.id === activeProject.id ? "border-primary ring-1 ring-primary/25 shadow-md" : ""}>
-              <CardContent>
+              <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium">{project.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{project.platform}</p>
+                    <p className="font-semibold text-foreground text-sm">{project.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground font-mono">{project.packageId}</p>
                   </div>
                   <Badge tone={toneForStatus(project.status)}>{project.status}</Badge>
                 </div>
                 <div className="mt-4 flex items-center gap-3">
                   {project.readinessScore >= 85 ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
                   ) : project.readinessScore >= 75 ? (
-                    <AlertTriangle className="h-5 w-5 text-amber-600" />
+                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
                   ) : (
-                    <ShieldAlert className="h-5 w-5 text-rose-600" />
+                    <ShieldAlert className="h-5 w-5 text-rose-600 shrink-0" />
                   )}
                   <div className="w-full">
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Readiness</span>
-                      <span>{project.readinessScore}%</span>
+                      <span className="font-semibold text-foreground">{project.readinessScore}%</span>
                     </div>
-                    <div className="mt-2 h-2 rounded-full bg-muted">
+                    <div className="mt-1.5 h-2 rounded-full bg-muted">
                       <div className="h-2 rounded-full bg-primary" style={{ width: `${project.readinessScore}%` }} />
                     </div>
                   </div>
@@ -225,4 +270,3 @@ export function Dashboard({
     </div>
   );
 }
-
