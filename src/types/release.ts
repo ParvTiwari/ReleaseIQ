@@ -21,7 +21,21 @@ export type AppPage =
   | "test-cases"
   | "copy-review"
   | "reports"
-  | "history";
+  | "history"
+  | "profile";
+
+export type UserRole = "Project Owner" | "QA Reviewer" | "Legal Auditor" | "Mobile Engineer";
+
+export type UserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  organization: string;
+  avatarInitials: string;
+  joinedDate: string;
+  twoFactorEnabled?: boolean;
+};
 
 export type CustomPolicyRule = {
   id: string;

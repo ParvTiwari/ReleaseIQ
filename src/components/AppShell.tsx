@@ -1,5 +1,7 @@
 import {
   Bell,
+  Check,
+  ChevronDown,
   ClipboardCheck,
   FileCheck2,
   FilePenLine,
@@ -7,26 +9,20 @@ import {
   History,
   LayoutDashboard,
   LockKeyhole,
+  LogOut,
   MessageSquareText,
   Search,
   Settings,
   ShieldCheck,
   UploadCloud,
+  User,
+  UserCheck,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { useState, type ReactNode } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import type { AppPage, UserRole } from "../types/release";
 import { Button } from "./ui/Button";
-
-export type AppPage =
-  | "dashboard"
-  | "projects"
-  | "app-details"
-  | "uploads"
-  | "compliance"
-  | "test-cases"
-  | "copy-review"
-  | "reports"
-  | "history";
 
 const navItems: Array<{ label: string; icon: typeof LayoutDashboard; path: string; page: AppPage }> = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", page: "dashboard" },
@@ -51,6 +47,7 @@ const pageTitles: Record<string, string> = {
   "/copy-review": "Store Listing Copy Review",
   "/reports": "Release Readiness Audit Report",
   "/history": "Release History & Audit Timeline",
+  "/profile": "User Profile & Access Roles",
 };
 
 export function AppShell({
@@ -63,10 +60,21 @@ export function AppShell({
   onNewProject: () => void;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut, switchRole } = useAuth();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
   const currentTitle = pageTitles[location.pathname] ?? "Release Readiness Dashboard";
+
+  const handleSignOut = () => {
+    signOut();
+    setIsProfileOpen(false);
+    navigate("/signin");
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Left Sidebar */}
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-border bg-card lg:block">
         <div className="flex h-16 items-center gap-3 border-b border-border px-5">
           <div className="grid h-9 w-9 place-items-center rounded-md bg-primary text-primary-foreground shadow-sm">
@@ -101,23 +109,25 @@ export function AppShell({
           ))}
         </nav>
         <div className="absolute bottom-0 w-full border-t border-border p-3">
-          <a
-            href="#"
-            onClick={(e) => e.preventDefault()}
+          <Link
+            to="/profile"
             className="flex h-10 items-center gap-3 rounded-md px-3 text-sm text-muted-foreground hover:bg-accent"
           >
             <Settings className="h-4 w-4" />
             Account settings
-          </a>
+          </Link>
         </div>
       </aside>
+
+      {/* Main Workspace Area */}
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
+        <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Workspace</p>
               <h1 className="text-lg font-semibold sm:text-xl">{currentTitle}</h1>
             </div>
+
             <div className="hidden min-w-0 max-w-md flex-1 items-center rounded-md border border-border bg-card px-3 py-2 md:flex">
               <Search className="h-4 w-4 text-muted-foreground" />
               <input
@@ -125,6 +135,7 @@ export function AppShell({
                 placeholder="Search projects, findings, reports..."
               />
             </div>
+
             <div className="flex items-center gap-2">
               <Button
                 variant="secondary"
@@ -138,7 +149,94 @@ export function AppShell({
                   </span>
                 )}
               </Button>
+
               <Button onClick={onNewProject}>New project</Button>
+
+              {/* User Profile Avatar Dropdown */}
+              {user ? (
+                <div className="relative ml-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileOpen(!isProfileOpen)}
+                    className="flex items-center gap-2 rounded-lg border border-border bg-card p-1.5 pr-2.5 transition hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/25"
+                  >
+                    <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
+                      {user.avatarInitials}
+                    </div>
+                    <div className="hidden text-left sm:block">
+                      <p className="text-xs font-semibold leading-none text-foreground">{user.name}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{user.role}</p>
+                    </div>
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+
+                  {/* Profile Menu Dropdown Modal */}
+                  {isProfileOpen && (
+                    <div
+                      className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-card p-3 shadow-xl z-50 animate-in fade-in zoom-in-95 space-y-3"
+                      onMouseLeave={() => setIsProfileOpen(false)}
+                    >
+                      <div className="border-b border-border pb-2 px-1">
+                        <p className="text-xs font-bold text-foreground">{user.name}</p>
+                        <p className="text-[11px] text-muted-foreground font-mono">{user.email}</p>
+                        <span className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                          {user.role}
+                        </span>
+                      </div>
+
+                      {/* Quick Role Switcher */}
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                          Switch Active Persona
+                        </p>
+                        {(["Project Owner", "QA Reviewer", "Legal Auditor", "Mobile Engineer"] as const).map((r: UserRole) => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => {
+                              switchRole(r);
+                              setIsProfileOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs transition ${
+                              user.role === r ? "bg-accent font-semibold text-primary" : "text-muted-foreground hover:bg-accent/60"
+                            }`}
+                          >
+                            <span>{r}</span>
+                            {user.role === r && <Check className="h-3.5 w-3.5 text-primary" />}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="border-t border-border pt-2 space-y-1">
+                        <Link
+                          to="/profile"
+                          onClick={() => setIsProfileOpen(false)}
+                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-foreground hover:bg-accent"
+                        >
+                          <User className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span>Account & Settings</span>
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={handleSignOut}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-rose-600 hover:bg-rose-50 transition"
+                        >
+                          <LogOut className="h-3.5 w-3.5" />
+                          <span>Sign Out</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 ml-1">
+                  <Link to="/signin">
+                    <Button variant="secondary" className="text-xs h-8">
+                      Sign In
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </header>

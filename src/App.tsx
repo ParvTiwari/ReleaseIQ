@@ -7,6 +7,10 @@ import {
 } from "react-router-dom";
 import { AppDetails } from "./components/AppDetails";
 import { AppShell } from "./components/AppShell";
+import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
+import { ProfilePage } from "./components/auth/ProfilePage";
+import { SignInPage } from "./components/auth/SignInPage";
+import { SignUpPage } from "./components/auth/SignUpPage";
 import { Dashboard } from "./components/Dashboard";
 import { NewProjectModal } from "./components/NewProjectModal";
 import { Projects } from "./components/Projects";
@@ -18,9 +22,10 @@ import {
   TestCasesPage,
 } from "./components/StaticReleasePages";
 import { UploadsPage } from "./components/UploadsPage";
+import { AuthProvider } from "./context/AuthContext";
 import { ReleaseProvider, useRelease } from "./context/ReleaseContext";
 
-function AppContent() {
+function MainWorkspaceLayout() {
   const navigate = useNavigate();
   const {
     projects,
@@ -153,6 +158,7 @@ function AppContent() {
             path="/history"
             element={<HistoryPage project={activeProject} />}
           />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AppShell>
@@ -173,9 +179,16 @@ function AppContent() {
 export default function App() {
   return (
     <BrowserRouter>
-      <ReleaseProvider>
-        <AppContent />
-      </ReleaseProvider>
+      <AuthProvider>
+        <ReleaseProvider>
+          <Routes>
+            <Route path="/signin" element={<SignInPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/*" element={<MainWorkspaceLayout />} />
+          </Routes>
+        </ReleaseProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
