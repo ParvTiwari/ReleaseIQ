@@ -14,48 +14,57 @@ import {
   UploadCloud,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import type { AppPage } from "../types/release";
+import { NavLink, useLocation } from "react-router-dom";
 import { Button } from "./ui/Button";
 
-export type { AppPage };
+export type AppPage =
+  | "dashboard"
+  | "projects"
+  | "app-details"
+  | "uploads"
+  | "compliance"
+  | "test-cases"
+  | "copy-review"
+  | "reports"
+  | "history";
 
-const navItems: Array<{ label: string; icon: typeof LayoutDashboard; page: AppPage }> = [
-  { label: "Dashboard", icon: LayoutDashboard, page: "dashboard" },
-  { label: "Projects", icon: FileText, page: "projects" },
-  { label: "App details", icon: FilePenLine, page: "app-details" },
-  { label: "Uploads & Manifest", icon: UploadCloud, page: "uploads" },
-  { label: "Compliance & Policy", icon: ShieldCheck, page: "compliance" },
-  { label: "Test Cases", icon: ClipboardCheck, page: "test-cases" },
-  { label: "Copy Review", icon: MessageSquareText, page: "copy-review" },
-  { label: "Readiness Report", icon: FileCheck2, page: "reports" },
-  { label: "History", icon: History, page: "history" },
+const navItems: Array<{ label: string; icon: typeof LayoutDashboard; path: string; page: AppPage }> = [
+  { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", page: "dashboard" },
+  { label: "Projects", icon: FileText, path: "/projects", page: "projects" },
+  { label: "App details", icon: FilePenLine, path: "/app-details", page: "app-details" },
+  { label: "Uploads & Manifest", icon: UploadCloud, path: "/uploads", page: "uploads" },
+  { label: "Compliance & Policy", icon: ShieldCheck, path: "/compliance", page: "compliance" },
+  { label: "Test Cases", icon: ClipboardCheck, path: "/test-cases", page: "test-cases" },
+  { label: "Copy Review", icon: MessageSquareText, path: "/copy-review", page: "copy-review" },
+  { label: "Readiness Report", icon: FileCheck2, path: "/reports", page: "reports" },
+  { label: "History", icon: History, path: "/history", page: "history" },
 ];
 
-const pageTitles: Record<AppPage, string> = {
-  dashboard: "Release Readiness Dashboard",
-  projects: "Projects & Policy Suites",
-  "app-details": "App Details & Configuration",
-  uploads: "Uploads & Manifest Analyzer",
-  compliance: "Compliance & Custom Policy Engine",
-  "test-cases": "Generated QA Test Cases",
-  "copy-review": "Store Listing Copy Review",
-  reports: "Release Readiness Audit Report",
-  history: "Release History & Audit Timeline",
+const pageTitles: Record<string, string> = {
+  "/dashboard": "Release Readiness Dashboard",
+  "/": "Release Readiness Dashboard",
+  "/projects": "Projects & Policy Suites",
+  "/app-details": "App Details & Configuration",
+  "/uploads": "Uploads & Manifest Analyzer",
+  "/compliance": "Compliance & Custom Policy Engine",
+  "/test-cases": "Generated QA Test Cases",
+  "/copy-review": "Store Listing Copy Review",
+  "/reports": "Release Readiness Audit Report",
+  "/history": "Release History & Audit Timeline",
 };
 
 export function AppShell({
   children,
-  currentPage,
   openBlockersCount = 0,
-  onNavigate,
   onNewProject,
 }: {
   children: ReactNode;
-  currentPage: AppPage;
   openBlockersCount?: number;
-  onNavigate: (page: AppPage) => void;
   onNewProject: () => void;
 }) {
+  const location = useLocation();
+  const currentTitle = pageTitles[location.pathname] ?? "Release Readiness Dashboard";
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-border bg-card lg:block">
@@ -70,15 +79,16 @@ export function AppShell({
         </div>
         <nav className="space-y-1 px-3 py-4">
           {navItems.map((item) => (
-            <button
-              type="button"
-              key={item.label}
-              onClick={() => onNavigate(item.page)}
-              className={`flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm transition ${
-                item.page === currentPage
-                  ? "bg-accent font-medium text-foreground shadow-xs"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
-              }`}
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm transition ${
+                  isActive || (item.path === "/dashboard" && location.pathname === "/")
+                    ? "bg-accent font-medium text-foreground shadow-xs"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`
+              }
             >
               <item.icon className="h-4 w-4" />
               <span>{item.label}</span>
@@ -87,7 +97,7 @@ export function AppShell({
                   {openBlockersCount}
                 </span>
               )}
-            </button>
+            </NavLink>
           ))}
         </nav>
         <div className="absolute bottom-0 w-full border-t border-border p-3">
@@ -106,7 +116,7 @@ export function AppShell({
           <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Workspace</p>
-              <h1 className="text-lg font-semibold sm:text-xl">{pageTitles[currentPage]}</h1>
+              <h1 className="text-lg font-semibold sm:text-xl">{currentTitle}</h1>
             </div>
             <div className="hidden min-w-0 max-w-md flex-1 items-center rounded-md border border-border bg-card px-3 py-2 md:flex">
               <Search className="h-4 w-4 text-muted-foreground" />
