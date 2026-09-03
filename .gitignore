@@ -4,3 +4,7 @@ dist/
 .env
 .env.local
 node_modules/.tmp/
+*.db
+__pycache__/
+*.pyc
+.pytest_cache/
