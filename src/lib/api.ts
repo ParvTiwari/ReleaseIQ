@@ -15,6 +15,39 @@ function getAuthHeader(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function mapBackendProjectToFrontend(data: any): Project {
+  return {
+    id: data.id,
+    name: data.name,
+    packageId: data.package_id || data.packageId,
+    version: data.version || "1.0.0",
+    category: data.category || "Health & Fitness",
+    releaseNotes: data.release_notes || data.releaseNotes || "",
+    platform: data.platform || "Android",
+    description: data.description || "",
+    releaseTarget: data.release_target || data.releaseTarget || "Sep 18, 2026",
+    readinessScore: data.readiness_score !== undefined ? data.readiness_score : data.readinessScore || 70,
+    status: data.status || "Needs review",
+    customPolicy: data.custom_policy_json ? JSON.parse(data.custom_policy_json) : undefined,
+  };
+}
+
+function mapFrontendProjectToBackend(project: Partial<Project>): any {
+  return {
+    name: project.name,
+    package_id: project.packageId,
+    version: project.version,
+    category: project.category,
+    release_notes: project.releaseNotes,
+    platform: project.platform,
+    description: project.description,
+    release_target: project.releaseTarget,
+    readiness_score: project.readinessScore,
+    status: project.status,
+    custom_policy_json: project.customPolicy ? JSON.stringify(project.customPolicy) : undefined,
+  };
+}
+
 export const api = {
   auth: {
     async login(email: string, role?: UserRole): Promise<{ user: UserProfile; access_token: string }> {
@@ -77,27 +110,32 @@ export const api = {
     async list(): Promise<Project[]> {
       const res = await fetch(`${API_BASE}/projects`, { headers: getAuthHeader() });
       if (!res.ok) throw new Error("Failed to fetch projects");
-      return res.json();
+      const data = await res.json();
+      return data.map(mapBackendProjectToFrontend);
     },
 
     async create(project: Partial<Project>): Promise<Project> {
+      const payload = mapFrontendProjectToBackend(project);
       const res = await fetch(`${API_BASE}/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify(project),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Failed to create project");
-      return res.json();
+      const data = await res.json();
+      return mapBackendProjectToFrontend(data);
     },
 
     async update(id: string, updates: Partial<Project>): Promise<Project> {
+      const payload = mapFrontendProjectToBackend(updates);
       const res = await fetch(`${API_BASE}/projects/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Failed to update project");
-      return res.json();
+      const data = await res.json();
+      return mapBackendProjectToFrontend(data);
     },
 
     async clone(id: string): Promise<Project> {
@@ -106,7 +144,8 @@ export const api = {
         headers: getAuthHeader(),
       });
       if (!res.ok) throw new Error("Failed to clone project");
-      return res.json();
+      const data = await res.json();
+      return mapBackendProjectToFrontend(data);
     },
 
     async delete(id: string): Promise<void> {

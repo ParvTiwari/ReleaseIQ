@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -12,7 +13,8 @@ import {
   initialTestCases,
   projects as initialProjects,
 } from "../data/mockRelease";
-import { notifyModal, notifyToast } from "../lib/alerts";
+import { notifyToast } from "../lib/alerts";
+import { api } from "../lib/api";
 import type {
   ComplianceFinding,
   CustomPolicyRule,
@@ -29,11 +31,11 @@ interface ReleaseContextType {
   activeProjectId: string;
   activeProject: Project;
   selectProject: (projectId: string) => void;
-  createProject: (fields: NewProjectFields) => void;
-  saveAppDetails: (details: Partial<Project>) => void;
-  updateProject: (projectId: string, updates: Partial<Project>) => void;
-  cloneProject: (sourceProjectId: string, newPlatform?: Platform) => void;
-  deleteProject: (projectId: string) => void;
+  createProject: (fields: NewProjectFields) => Promise<void>;
+  saveAppDetails: (details: Partial<Project>) => Promise<void>;
+  updateProject: (projectId: string, updates: Partial<Project>) => Promise<void>;
+  cloneProject: (sourceProjectId: string, newPlatform?: Platform) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<void>;
   manifestsByProject: Record<string, ManifestArtifact>;
   privacyPoliciesByProject: Record<string, PrivacyPolicyArtifact>;
   complianceByProject: Record<string, ComplianceFinding[]>;
@@ -45,25 +47,27 @@ interface ReleaseContextType {
   activeTestCases: TestCase[];
   activeCustomRules: CustomPolicyRule[];
   openBlockersCount: number;
-  handleUploadManifest: (manifest: ManifestArtifact) => void;
-  handleUploadPrivacyPolicy: (policy: PrivacyPolicyArtifact) => void;
-  handleToggleTestCaseStatus: (testCaseId: string) => void;
-  handleAddTestCase: (testCase: TestCase) => void;
-  handleUpdateTestCase: (testCase: TestCase) => void;
-  handleDeleteTestCase: (testCaseId: string) => void;
-  handleToggleComplianceStatus: (checkId: string) => void;
+  handleUploadManifest: (manifest: ManifestArtifact) => Promise<void>;
+  handleUploadPrivacyPolicy: (policy: PrivacyPolicyArtifact) => Promise<void>;
+  handleToggleTestCaseStatus: (testCaseId: string) => Promise<void>;
+  handleAddTestCase: (testCase: TestCase) => Promise<void>;
+  handleUpdateTestCase: (testCase: TestCase) => Promise<void>;
+  handleDeleteTestCase: (testCaseId: string) => Promise<void>;
+  handleToggleComplianceStatus: (checkId: string) => Promise<void>;
   handleToggleCustomRuleStatus: (ruleId: string) => void;
   handleAddCustomRule: (rule: CustomPolicyRule) => void;
   isNewProjectOpen: boolean;
   setIsNewProjectOpen: (open: boolean) => void;
+  isLoading: boolean;
 }
 
 const ReleaseContext = createContext<ReleaseContextType | undefined>(undefined);
 
 export function ReleaseProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [activeProjectId, setActiveProjectId] = useState(initialProjects[0].id);
+  const [activeProjectId, setActiveProjectId] = useState<string>(initialProjects[0].id);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Per-project state stores
   const [manifestsByProject, setManifestsByProject] = useState<Record<string, ManifestArtifact>>(initialManifests);
@@ -76,9 +80,61 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
   });
   const [customRulesByProject, setCustomRulesByProject] = useState<Record<string, CustomPolicyRule[]>>({});
 
-  const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
-  const activeManifest = manifestsByProject[activeProjectId];
-  const activePrivacyPolicy = privacyPoliciesByProject[activeProjectId];
+  // 1. Initial Load: Fetch live projects from backend
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        setIsLoading(true);
+        const liveProjects = await api.projects.list();
+        if (liveProjects && liveProjects.length > 0) {
+          setProjects(liveProjects);
+          setActiveProjectId(liveProjects[0].id);
+        }
+      } catch {
+        // Retain initial mock projects if backend is offline
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchInitialData();
+  }, []);
+
+  // 2. Fetch project-specific compliance, test cases, and artifacts when active project changes
+  useEffect(() => {
+    if (!activeProjectId) return;
+
+    const fetchProjectDetails = async () => {
+      try {
+        const [liveCompliance, liveTests, liveManifest, livePolicy] = await Promise.allSettled([
+          api.compliance.list(activeProjectId),
+          api.testCases.list(activeProjectId),
+          api.artifacts.getManifest(activeProjectId),
+          api.artifacts.getPrivacyPolicy(activeProjectId),
+        ]);
+
+        if (liveCompliance.status === "fulfilled" && liveCompliance.value.length > 0) {
+          setComplianceByProject((prev) => ({ ...prev, [activeProjectId]: liveCompliance.value }));
+        }
+        if (liveTests.status === "fulfilled" && liveTests.value.length > 0) {
+          setTestCasesByProject((prev) => ({ ...prev, [activeProjectId]: liveTests.value }));
+        }
+        if (liveManifest.status === "fulfilled" && liveManifest.value) {
+          setManifestsByProject((prev) => ({ ...prev, [activeProjectId]: liveManifest.value }));
+        }
+        if (livePolicy.status === "fulfilled" && livePolicy.value) {
+          setPrivacyPoliciesByProject((prev) => ({ ...prev, [activeProjectId]: livePolicy.value }));
+        }
+      } catch {
+        // Fallback to local memory stores
+      }
+    };
+
+    fetchProjectDetails();
+  }, [activeProjectId]);
+
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? initialProjects[0];
+  const activeManifest = manifestsByProject[activeProjectId] ?? initialManifests[activeProjectId];
+  const activePrivacyPolicy = privacyPoliciesByProject[activeProjectId] ?? initialPrivacyPolicies[activeProjectId];
   const activeCompliance = complianceByProject[activeProjectId] ?? initialChecks;
   const activeTestCases = testCasesByProject[activeProjectId] ?? initialTestCases;
   const activeCustomRules = customRulesByProject[activeProjectId] ?? activeProject.customPolicy?.rules ?? [];
@@ -91,19 +147,42 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     setActiveProjectId(projectId);
   };
 
-  const updateProject = (projectId: string, updates: Partial<Project>) => {
+  const updateProject = async (projectId: string, updates: Partial<Project>) => {
+    // Optimistic local update
     setProjects((current) =>
       current.map((project) =>
         project.id === projectId ? { ...project, ...updates } : project
       )
     );
+
+    try {
+      await api.projects.update(projectId, updates);
+    } catch {
+      // Retain optimistic update
+    }
   };
 
-  const cloneProject = (sourceProjectId: string, newPlatform?: Platform) => {
+  const cloneProject = async (sourceProjectId: string, newPlatform?: Platform) => {
     const source = projects.find((p) => p.id === sourceProjectId);
     if (!source) return;
 
     const targetPlatform = newPlatform || (source.platform === "Android" ? "iOS" : "Android");
+
+    try {
+      const cloned = await api.projects.clone(sourceProjectId);
+      if (cloned) {
+        setProjects((current) => [cloned, ...current]);
+        setActiveProjectId(cloned.id);
+        notifyToast({
+          title: `Cloned to ${cloned.platform} project`,
+          icon: "success",
+        });
+        return;
+      }
+    } catch {
+      // Offline fallback cloning
+    }
+
     const clonedId = `proj-${Date.now().toString(36)}`;
     const clonedName = `${source.name} (${targetPlatform})`;
     const clonedPackage = targetPlatform === "iOS"
@@ -148,7 +227,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const deleteProject = (projectId: string) => {
+  const deleteProject = async (projectId: string) => {
     setProjects((current) => {
       const remaining = current.filter((p) => p.id !== projectId);
       if (remaining.length > 0 && activeProjectId === projectId) {
@@ -156,15 +235,55 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
       }
       return remaining;
     });
+
+    try {
+      await api.projects.delete(projectId);
+    } catch {
+      // Local deletion handled
+    }
+
     notifyToast({
       title: "Project removed from workspace",
       icon: "error",
     });
   };
 
-  const createProject = (fields: NewProjectFields) => {
+  const createProject = async (fields: NewProjectFields) => {
     const isCustomPolicy = fields.platform === "Custom Policy";
-    const project: Project = {
+    const packageId = isCustomPolicy
+      ? `policy.${fields.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.suite`
+      : `com.${fields.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.app`;
+
+    try {
+      const liveNewProject = await api.projects.create({
+        name: fields.name,
+        platform: fields.platform,
+        category: fields.category || (isCustomPolicy ? "Security & Governance" : "Health & Fitness"),
+        description: fields.description,
+        releaseTarget: new Date(`${fields.releaseTarget}T00:00:00`).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        packageId,
+        customPolicy: fields.customPolicy,
+      });
+
+      if (liveNewProject) {
+        setProjects((current) => [liveNewProject, ...current]);
+        setActiveProjectId(liveNewProject.id);
+        setIsNewProjectOpen(false);
+        notifyToast({
+          title: `Created new project "${liveNewProject.name}"`,
+          icon: "success",
+        });
+        return;
+      }
+    } catch {
+      // Offline fallback creation
+    }
+
+    const localProject: Project = {
       id: crypto.randomUUID(),
       name: fields.name,
       platform: fields.platform,
@@ -174,38 +293,32 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         day: "numeric",
         year: "numeric",
       }),
-      packageId: isCustomPolicy
-        ? `policy.${fields.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.suite`
-        : `com.${fields.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.app`,
+      packageId,
       version: "1.0.0",
-      category: isCustomPolicy ? "Security & Governance" : "Productivity",
+      category: fields.category || (isCustomPolicy ? "Security & Governance" : "Productivity"),
       releaseNotes: isCustomPolicy ? "Initial corporate compliance evaluation suite." : "Initial release.",
       readinessScore: fields.customPolicy ? 78 : 65,
       status: "Needs review",
       customPolicy: fields.customPolicy,
     };
 
-    setProjects((current) => [project, ...current]);
+    setProjects((current) => [localProject, ...current]);
     if (fields.customPolicy?.rules) {
       setCustomRulesByProject((current) => ({
         ...current,
-        [project.id]: fields.customPolicy?.rules || [],
+        [localProject.id]: fields.customPolicy?.rules || [],
       }));
     }
-    setActiveProjectId(project.id);
+    setActiveProjectId(localProject.id);
     setIsNewProjectOpen(false);
     notifyToast({
-      title: `Created new project "${project.name}"`,
+      title: `Created new project "${localProject.name}"`,
       icon: "success",
     });
   };
 
-  const saveAppDetails = (details: Partial<Project>) => {
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === activeProjectId ? { ...project, ...details } : project
-      )
-    );
+  const saveAppDetails = async (details: Partial<Project>) => {
+    await updateProject(activeProjectId, details);
   };
 
   const recalculateProjectScore = (findings: ComplianceFinding[], customRulesList: CustomPolicyRule[]) => {
@@ -237,24 +350,33 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const handleToggleComplianceStatus = (checkId: string) => {
-    setComplianceByProject((current) => {
-      const existing = current[activeProjectId] ?? initialChecks;
-      const updated: ComplianceFinding[] = existing.map((check) => {
-        if (check.id === checkId || check.title.toLowerCase() === checkId.toLowerCase()) {
-          const nextStatus: RuleStatus = check.status === "Passed" ? "Blocked" : "Passed";
-          return { ...check, status: nextStatus };
-        }
-        return check;
-      });
+  const handleToggleComplianceStatus = async (checkId: string) => {
+    const existing = complianceByProject[activeProjectId] ?? initialChecks;
+    const targetCheck = existing.find((c) => c.id === checkId || c.title.toLowerCase() === checkId.toLowerCase());
+    const nextStatus: RuleStatus = targetCheck?.status === "Passed" ? "Blocked" : "Passed";
 
-      recalculateProjectScore(updated, activeCustomRules);
-      notifyToast({
-        title: "Compliance check status updated",
-        icon: "info",
-      });
-      return { ...current, [activeProjectId]: updated };
+    const updated: ComplianceFinding[] = existing.map((check) => {
+      if (check.id === checkId || check.title.toLowerCase() === checkId.toLowerCase()) {
+        return { ...check, status: nextStatus };
+      }
+      return check;
     });
+
+    setComplianceByProject((current) => ({ ...current, [activeProjectId]: updated }));
+    recalculateProjectScore(updated, activeCustomRules);
+
+    notifyToast({
+      title: "Compliance check status updated",
+      icon: "info",
+    });
+
+    if (targetCheck) {
+      try {
+        await api.compliance.updateStatus(activeProjectId, targetCheck.id, nextStatus);
+      } catch {
+        // Local state already updated
+      }
+    }
   };
 
   const handleToggleCustomRuleStatus = (ruleId: string) => {
@@ -277,7 +399,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const handleUploadManifest = (manifest: ManifestArtifact) => {
+  const handleUploadManifest = async (manifest: ManifestArtifact) => {
     setManifestsByProject((current) => ({
       ...current,
       [activeProjectId]: manifest,
@@ -297,9 +419,15 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
       recalculateProjectScore(updated, activeCustomRules);
       return { ...current, [activeProjectId]: updated };
     });
+
+    try {
+      await api.artifacts.uploadManifest(activeProjectId, undefined, manifest.name);
+    } catch {
+      // Local state preserved
+    }
   };
 
-  const handleUploadPrivacyPolicy = (policy: PrivacyPolicyArtifact) => {
+  const handleUploadPrivacyPolicy = async (policy: PrivacyPolicyArtifact) => {
     setPrivacyPoliciesByProject((current) => ({
       ...current,
       [activeProjectId]: policy,
@@ -315,34 +443,45 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
       recalculateProjectScore(updated, activeCustomRules);
       return { ...current, [activeProjectId]: updated };
     });
+
+    try {
+      await api.artifacts.uploadPrivacyPolicy(activeProjectId, undefined, policy.fileName);
+    } catch {
+      // Local state preserved
+    }
   };
 
-  const handleToggleTestCaseStatus = (testCaseId: string) => {
-    setTestCasesByProject((current) => {
-      const existing = current[activeProjectId] ?? initialTestCases;
-      return {
-        ...current,
-        [activeProjectId]: existing.map((tc) => {
-          if (tc.id === testCaseId) {
-            const nextStatus: TestCase["status"] =
-              tc.status === "Ready"
-                ? "Passed"
-                : tc.status === "Passed"
-                  ? "Blocked"
-                  : "Ready";
-            notifyToast({
-              title: `Test ${tc.id} marked as ${nextStatus}`,
-              icon: nextStatus === "Passed" ? "success" : nextStatus === "Blocked" ? "warning" : "info",
-            });
-            return { ...tc, status: nextStatus };
-          }
-          return tc;
-        }),
-      };
+  const handleToggleTestCaseStatus = async (testCaseId: string) => {
+    const existing = testCasesByProject[activeProjectId] ?? initialTestCases;
+    let nextStatus: TestCase["status"] = "Ready";
+
+    const updated = existing.map((tc) => {
+      if (tc.id === testCaseId) {
+        nextStatus =
+          tc.status === "Ready"
+            ? "Passed"
+            : tc.status === "Passed"
+              ? "Blocked"
+              : "Ready";
+        notifyToast({
+          title: `Test ${tc.id} marked as ${nextStatus}`,
+          icon: nextStatus === "Passed" ? "success" : nextStatus === "Blocked" ? "warning" : "info",
+        });
+        return { ...tc, status: nextStatus };
+      }
+      return tc;
     });
+
+    setTestCasesByProject((current) => ({ ...current, [activeProjectId]: updated }));
+
+    try {
+      await api.testCases.update(activeProjectId, testCaseId, { status: nextStatus });
+    } catch {
+      // Local state updated
+    }
   };
 
-  const handleAddTestCase = (newTestCase: TestCase) => {
+  const handleAddTestCase = async (newTestCase: TestCase) => {
     setTestCasesByProject((current) => {
       const existing = current[activeProjectId] ?? initialTestCases;
       notifyToast({
@@ -354,9 +493,15 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         [activeProjectId]: [newTestCase, ...existing],
       };
     });
+
+    try {
+      await api.testCases.create(activeProjectId, newTestCase);
+    } catch {
+      // Local state updated
+    }
   };
 
-  const handleUpdateTestCase = (updatedTestCase: TestCase) => {
+  const handleUpdateTestCase = async (updatedTestCase: TestCase) => {
     setTestCasesByProject((current) => {
       const existing = current[activeProjectId] ?? initialTestCases;
       notifyToast({
@@ -370,9 +515,15 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         ),
       };
     });
+
+    try {
+      await api.testCases.update(activeProjectId, updatedTestCase.id, updatedTestCase);
+    } catch {
+      // Local state updated
+    }
   };
 
-  const handleDeleteTestCase = (testCaseId: string) => {
+  const handleDeleteTestCase = async (testCaseId: string) => {
     setTestCasesByProject((current) => {
       const existing = current[activeProjectId] ?? initialTestCases;
       notifyToast({
@@ -384,6 +535,12 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         [activeProjectId]: existing.filter((tc) => tc.id !== testCaseId),
       };
     });
+
+    try {
+      await api.testCases.delete(activeProjectId, testCaseId);
+    } catch {
+      // Local state updated
+    }
   };
 
   const handleAddCustomRule = (rule: CustomPolicyRule) => {
@@ -432,6 +589,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         handleAddCustomRule,
         isNewProjectOpen,
         setIsNewProjectOpen,
+        isLoading,
       }}
     >
       {children}

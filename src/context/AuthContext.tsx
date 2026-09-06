@@ -1,19 +1,21 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
+import { api } from "../lib/api";
 import type { UserProfile, UserRole } from "../types/release";
 
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
-  signIn: (email: string, role?: UserRole, name?: string) => void;
-  signUp: (name: string, email: string, role: UserRole, organization?: string) => void;
+  signIn: (email: string, role?: UserRole, name?: string) => Promise<void>;
+  signUp: (name: string, email: string, role: UserRole, organization?: string) => Promise<void>;
   signOut: () => void;
-  switchRole: (role: UserRole) => void;
-  updateProfile: (updates: Partial<UserProfile>) => void;
+  switchRole: (role: UserRole) => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
 }
 
@@ -61,15 +63,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
       } else {
         localStorage.setItem(STORAGE_KEY, "null");
+        localStorage.removeItem("releaseiq_jwt_token");
       }
     } catch {
       // ignore storage error
     }
   };
 
-  const signIn = (email: string, role: UserRole = "Project Owner", name?: string) => {
+  // On mount, sync with backend if JWT exists
+  useEffect(() => {
+    const syncUser = async () => {
+      const token = localStorage.getItem("releaseiq_jwt_token");
+      if (token) {
+        try {
+          const freshUser = await api.auth.getMe();
+          persistUser(freshUser);
+        } catch {
+          // Keep cached local user if backend is offline
+        }
+      }
+    };
+    syncUser();
+  }, []);
+
+  const signIn = async (email: string, role: UserRole = "Project Owner", name?: string) => {
+    try {
+      const res = await api.auth.login(email, role);
+      if (res && res.user) {
+        persistUser(res.user);
+        return;
+      }
+    } catch {
+      // Offline fallback
+    }
+
     const userName = name || email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-    const signedInUser: UserProfile = {
+    const fallbackUser: UserProfile = {
       id: `usr-${Date.now()}`,
       name: userName,
       email,
@@ -79,11 +108,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       joinedDate: "August 2026",
       twoFactorEnabled: false,
     };
-    persistUser(signedInUser);
+    persistUser(fallbackUser);
   };
 
-  const signUp = (name: string, email: string, role: UserRole, organization = "Acme Corp") => {
-    const newUser: UserProfile = {
+  const signUp = async (name: string, email: string, role: UserRole, organization = "Acme Corp") => {
+    try {
+      const res = await api.auth.register(name, email, role, organization);
+      if (res && res.user) {
+        persistUser(res.user);
+        return;
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    const fallbackUser: UserProfile = {
       id: `usr-${Date.now()}`,
       name,
       email,
@@ -93,25 +132,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       joinedDate: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
       twoFactorEnabled: false,
     };
-    persistUser(newUser);
+    persistUser(fallbackUser);
   };
 
   const signOut = () => {
     persistUser(null);
   };
 
-  const switchRole = (newRole: UserRole) => {
+  const switchRole = async (newRole: UserRole) => {
     if (!user) return;
-    persistUser({ ...user, role: newRole });
+    try {
+      const updated = await api.auth.updateProfile({ role: newRole });
+      persistUser(updated);
+    } catch {
+      persistUser({ ...user, role: newRole });
+    }
   };
 
-  const updateProfile = (updates: Partial<UserProfile>) => {
+  const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return;
-    persistUser({
-      ...user,
-      ...updates,
-      avatarInitials: updates.name ? getInitials(updates.name) : user.avatarInitials,
-    });
+    try {
+      const updated = await api.auth.updateProfile(updates);
+      persistUser(updated);
+    } catch {
+      persistUser({
+        ...user,
+        ...updates,
+        avatarInitials: updates.name ? getInitials(updates.name) : user.avatarInitials,
+      });
+    }
   };
 
   const resetPassword = async (email: string): Promise<boolean> => {
