@@ -22,8 +22,10 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useRelease } from "../context/ReleaseContext";
 import type { AppPage, Project, UserRole } from "../types/release";
 import { CommandPalette } from "./CommandPalette";
+import { NotificationDrawer } from "./NotificationDrawer";
 import { Button } from "./ui/Button";
 
 const navItems: Array<{ label: string; icon: typeof LayoutDashboard; path: string; page: AppPage }> = [
@@ -70,6 +72,12 @@ export function AppShell({
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut, switchRole } = useAuth();
+  const {
+    notifications,
+    isNotificationsOpen,
+    setIsNotificationsOpen,
+    handleMarkAllNotificationsAsRead,
+  } = useRelease();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
@@ -167,12 +175,13 @@ export function AppShell({
               <Button
                 variant="secondary"
                 className="relative h-9 w-9 px-0"
+                onClick={() => setIsNotificationsOpen(true)}
                 title={openBlockersCount > 0 ? `${openBlockersCount} Open Release Blockers` : "Notifications"}
               >
                 <Bell className="h-4 w-4" />
-                {openBlockersCount > 0 && (
+                {notifications.filter((n) => !n.read).length > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">
-                    {openBlockersCount}
+                    {notifications.filter((n) => !n.read).length}
                   </span>
                 )}
               </Button>
@@ -269,6 +278,14 @@ export function AppShell({
         </header>
         <main className="px-4 py-6 sm:px-6">{children}</main>
       </div>
+
+      {/* Slide-over Notification Drawer */}
+      <NotificationDrawer
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        notifications={notifications}
+        onMarkAllAsRead={handleMarkAllNotificationsAsRead}
+      />
 
       {/* Global Command Palette Spotlight (Ctrl+K) */}
       <CommandPalette

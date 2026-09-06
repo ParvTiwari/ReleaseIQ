@@ -172,10 +172,11 @@ export const api = {
       return res.json();
     },
 
-    async getManifest(projectId: string): Promise<ManifestArtifact> {
+    async getManifest(projectId: string): Promise<ManifestArtifact | null> {
       const res = await fetch(`${API_BASE}/projects/${projectId}/manifest`, {
         headers: getAuthHeader(),
       });
+      if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch manifest");
       return res.json();
     },
@@ -194,10 +195,11 @@ export const api = {
       return res.json();
     },
 
-    async getPrivacyPolicy(projectId: string): Promise<PrivacyPolicyArtifact> {
+    async getPrivacyPolicy(projectId: string): Promise<PrivacyPolicyArtifact | null> {
       const res = await fetch(`${API_BASE}/projects/${projectId}/privacy-policy`, {
         headers: getAuthHeader(),
       });
+      if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch privacy policy");
       return res.json();
     },
@@ -219,6 +221,17 @@ export const api = {
         body: JSON.stringify({ status, exemptionNote }),
       });
       if (!res.ok) throw new Error("Failed to update finding status");
+      return res.json();
+    },
+  },
+
+  ai: {
+    async audit(projectId: string): Promise<any> {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/ai-audit`, {
+        method: "POST",
+        headers: getAuthHeader(),
+      });
+      if (!res.ok) throw new Error("AI audit failed");
       return res.json();
     },
   },

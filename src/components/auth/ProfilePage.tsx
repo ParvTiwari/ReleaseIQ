@@ -176,15 +176,33 @@ export function ProfilePage() {
                 <p className="text-xs font-semibold text-foreground">API Token (CI/CD Automated Audits)</p>
                 <div className="rounded bg-accent p-2.5 font-mono text-[11px] text-muted-foreground flex items-center justify-between border border-border">
                   <span>rq_live_98ab44f...39c</span>
-                  <Button variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => alert("API Token copied to clipboard!")}>
+                  <Button
+                    variant="ghost"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => {
+                      if (navigator.clipboard) {
+                        navigator.clipboard.writeText("rq_live_98ab44f839c011e9a2b7");
+                      }
+                      setSavedSuccess(true);
+                      setTimeout(() => setSavedSuccess(false), 2000);
+                    }}
+                  >
                     Copy
                   </Button>
                 </div>
               </div>
 
               <div className="pt-1">
-                <Button variant="secondary" className="w-full text-xs">
-                  <KeyRound className="h-3.5 w-3.5 mr-1.5" /> Change Password
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full text-xs"
+                  onClick={() => {
+                    setSavedSuccess(true);
+                    setTimeout(() => setSavedSuccess(false), 2000);
+                  }}
+                >
+                  <KeyRound className="h-3.5 w-3.5 mr-1.5" /> Change Password / Request Reset
                 </Button>
               </div>
             </CardContent>

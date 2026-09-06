@@ -14,8 +14,8 @@ export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElemen
   return <div className={cn("border-b border-border px-5 py-4", className)} {...props} />;
 }
 
-export function CardTitle({ children }: { children: ReactNode }) {
-  return <h2 className="text-sm font-semibold text-foreground">{children}</h2>;
+export function CardTitle({ className, children }: { className?: string; children: ReactNode }) {
+  return <h2 className={cn("text-sm font-semibold text-foreground", className)}>{children}</h2>;
 }
 
 export function CardContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

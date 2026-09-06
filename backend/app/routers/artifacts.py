@@ -8,22 +8,66 @@ from app.models.compliance import ComplianceFinding
 from app.models.manifest import ManifestArtifact
 from app.models.privacy import PrivacyPolicyArtifact
 from app.models.project import Project
-from app.schemas.manifest import ManifestArtifactResponse, PrivacyPolicyArtifactResponse
-from app.services.compliance_engine import calculate_readiness_score
+from app.services.compliance_engine import calculate_readiness_score, evaluate_project_compliance
 from app.services.manifest_parser import parse_android_manifest
 from app.services.privacy_parser import analyze_privacy_policy
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["Artifacts & Parsers"])
 
 
-class RawXmlUpload(BaseModel):
-    rawXml: str
-    fileName: Optional[str] = "AndroidManifest.xml"
+def sync_project_compliance(db: Session, project: Project):
+    """
+    Re-evaluates compliance findings based on currently uploaded manifest and privacy policy.
+    """
+    manifest = db.query(ManifestArtifact).filter(ManifestArtifact.project_id == project.id).first()
+    privacy = db.query(PrivacyPolicyArtifact).filter(PrivacyPolicyArtifact.project_id == project.id).first()
 
+    manifest_data = None
+    if manifest:
+        manifest_data = {
+            "packageName": manifest.package_name,
+            "targetSdkVersion": manifest.target_sdk,
+            "minSdkVersion": manifest.min_sdk,
+            "permissions": json.loads(manifest.permissions_json or "[]"),
+            "usesCleartextTraffic": "usesCleartextTraffic=\"true\"" in (manifest.raw_xml or "").lower(),
+            "isAndroidAuto": "car.application" in (manifest.raw_xml or "").lower() or "automotive" in (manifest.raw_xml or "").lower(),
+            "isWearOS": "watch" in (manifest.raw_xml or "").lower() or "wearable" in (manifest.raw_xml or "").lower(),
+        }
 
-class PastePolicyUpload(BaseModel):
-    content: str
-    fileName: Optional[str] = "PastedPrivacyPolicy.txt"
+    privacy_clauses = None
+    if privacy:
+        privacy_clauses = json.loads(privacy.clauses_json or "[]")
+
+    project_meta = {
+        "id": project.id,
+        "name": project.name,
+        "platform": project.platform,
+        "category": project.category,
+    }
+
+    new_findings = evaluate_project_compliance(project_meta, manifest_data, privacy_clauses)
+
+    # Replace DB compliance findings with freshly evaluated findings
+    db.query(ComplianceFinding).filter(ComplianceFinding.project_id == project.id).delete()
+    for f in new_findings:
+        finding = ComplianceFinding(
+            project_id=project.id,
+            title=f["title"],
+            status=f["status"],
+            severity=f["severity"],
+            owner=f["owner"],
+            detail=f["detail"],
+            category=f["category"],
+            guideline_ref=f.get("guidelineRef"),
+            remediation=f.get("remediation"),
+        )
+        db.add(finding)
+
+    # Recalculate project readiness score & status
+    new_score, new_status = calculate_readiness_score(new_findings)
+    project.readiness_score = new_score
+    project.status = new_status
+    db.commit()
 
 
 @router.post("/manifest")
@@ -69,20 +113,10 @@ async def upload_manifest(
     if parsed.get("packageName") and parsed["packageName"] != "com.releaseiq.app":
         project.package_id = parsed["packageName"]
 
-    # Dynamic compliance check: If high-risk location permission exists, ensure background check is flagged
-    has_high_location = any(p["risk"] == "High" and "LOCATION" in p["name"] for p in parsed["permissions"])
-    findings = db.query(ComplianceFinding).filter(ComplianceFinding.project_id == project_id).all()
-    for f in findings:
-        if "location" in f.title.lower():
-            f.status = "Blocked" if has_high_location else "Passed"
-
-    # Recalculate project readiness score
-    finding_dicts = [{"status": f.status} for f in findings]
-    new_score, new_status = calculate_readiness_score(finding_dicts)
-    project.readiness_score = new_score
-    project.status = new_status
-
     db.commit()
+
+    # Re-evaluate all store compliance findings dynamically
+    sync_project_compliance(db, project)
 
     return {
         "id": manifest.id,
@@ -92,6 +126,10 @@ async def upload_manifest(
         "targetSdkVersion": manifest.target_sdk,
         "minSdkVersion": manifest.min_sdk,
         "permissions": parsed["permissions"],
+        "features": parsed.get("features", []),
+        "usesCleartextTraffic": parsed.get("usesCleartextTraffic", False),
+        "isAndroidAuto": parsed.get("isAndroidAuto", False),
+        "isWearOS": parsed.get("isWearOS", False),
     }
 
 
@@ -99,31 +137,7 @@ async def upload_manifest(
 def get_manifest(project_id: str, db: Session = Depends(get_db)):
     manifest = db.query(ManifestArtifact).filter(ManifestArtifact.project_id == project_id).first()
     if not manifest:
-        # Default mock manifest structure
-        return {
-            "id": f"man-{project_id}",
-            "projectId": project_id,
-            "name": "AndroidManifest.xml",
-            "size": 4210,
-            "targetSdkVersion": 34,
-            "minSdkVersion": 26,
-            "permissions": [
-                {
-                    "name": "android.permission.INTERNET",
-                    "risk": "Low",
-                    "description": "Required for server sync and API communication.",
-                    "playStoreGuidance": "Standard normal permission.",
-                    "requiredJustification": False,
-                },
-                {
-                    "name": "android.permission.ACCESS_FINE_LOCATION",
-                    "risk": "High",
-                    "description": "Required for real-time GPS tracking.",
-                    "playStoreGuidance": "Must prompt at runtime with prominent disclosure.",
-                    "requiredJustification": True,
-                },
-            ],
-        }
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manifest artifact not found")
 
     permissions = json.loads(manifest.permissions_json or "[]")
     return {
@@ -160,7 +174,7 @@ async def upload_privacy_policy(
         filename = "PastedPrivacyPolicy.txt"
 
     if not text_content.strip():
-        text_content = "Privacy Policy: We collect user workout data, email, and telemetry for app operations. Users may request account deletion at https://pulsefit.app/delete-account."
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No policy text provided")
 
     clauses = analyze_privacy_policy(text_content)
 
@@ -176,6 +190,9 @@ async def upload_privacy_policy(
 
     db.commit()
 
+    # Re-evaluate all store compliance findings dynamically
+    sync_project_compliance(db, project)
+
     return {
         "id": policy.id,
         "projectId": project_id,
@@ -189,14 +206,7 @@ async def upload_privacy_policy(
 def get_privacy_policy(project_id: str, db: Session = Depends(get_db)):
     policy = db.query(PrivacyPolicyArtifact).filter(PrivacyPolicyArtifact.project_id == project_id).first()
     if not policy:
-        clauses = analyze_privacy_policy("We collect data, share with analytics, and provide deletion at https://example.com/delete.")
-        return {
-            "id": f"priv-{project_id}",
-            "projectId": project_id,
-            "fileName": "PrivacyPolicy.pdf",
-            "status": "Ready",
-            "clauses": clauses,
-        }
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Privacy policy artifact not found")
 
     clauses = json.loads(policy.clauses_json or "[]")
     return {

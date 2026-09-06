@@ -92,7 +92,37 @@ def run_tests():
     assert "verificationHash" in report
     print(f"[PASS] /api/projects/{project_id}/report generated audit report (Hash: {report['verificationHash']})")
 
-    print("\n[SUCCESS] ALL BACKEND API ENDPOINT TESTS PASSED SUCCESSFULLY!")
+    # 10. AI Compliance Audit with Groq / Heuristic Engine
+    ai_res = client.post(f"/api/projects/{project_id}/ai-audit", headers=headers)
+    assert ai_res.status_code == 200, f"AI audit failed: {ai_res.text}"
+    ai_data = ai_res.json()
+    assert "executiveSummary" in ai_data
+    assert "restrictedPermissionsAnalysis" in ai_data
+    print(f"[PASS] /api/projects/{project_id}/ai-audit executed successfully")
+
+    # 11. Clean Slate Project Creation (Score 0, No Mock Data)
+    new_proj_res = client.post(
+        "/api/projects",
+        json={
+            "name": "Clean Test App",
+            "platform": "Android",
+            "category": "Navigation & Maps",
+            "description": "Brand new test project",
+            "release_target": "Oct 15, 2026",
+        },
+        headers=headers,
+    )
+    assert new_proj_res.status_code == 200, f"Create project failed: {new_proj_res.text}"
+    created_proj = new_proj_res.json()
+    assert created_proj["readiness_score"] == 0, f"Expected 0 score for new project, got {created_proj['readiness_score']}"
+    print(f"[PASS] Newly created project has clean 0% readiness score (ID: {created_proj['id']})")
+
+    # Verify new project has no manifest initially (returns 404)
+    manifest_404_res = client.get(f"/api/projects/{created_proj['id']}/manifest", headers=headers)
+    assert manifest_404_res.status_code == 404, f"Expected 404 for empty manifest, got {manifest_404_res.status_code}"
+    print("[PASS] New project correctly reports 404 for missing manifest (no mock data)")
+
+    print("\n[SUCCESS] ALL BACKEND API ENDPOINT TESTS (11/11) PASSED SUCCESSFULLY!")
 
 
 if __name__ == "__main__":

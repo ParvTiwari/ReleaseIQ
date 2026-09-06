@@ -9,6 +9,7 @@ from app.routers import (
     projects_router,
     reports_router,
     test_cases_router,
+    ai_router,
 )
 
 # Initialize database schema tables
@@ -38,6 +39,7 @@ app.include_router(artifacts_router, prefix=settings.API_V1_STR)
 app.include_router(compliance_router, prefix=settings.API_V1_STR)
 app.include_router(test_cases_router, prefix=settings.API_V1_STR)
 app.include_router(reports_router, prefix=settings.API_V1_STR)
+app.include_router(ai_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

@@ -15,10 +15,15 @@ import {
 } from "../data/mockRelease";
 import { notifyToast } from "../lib/alerts";
 import { api } from "../lib/api";
+import { evaluateClientCompliance } from "../lib/parsers";
 import type {
+  AiAuditResult,
+  AssetItem,
   ComplianceFinding,
   CustomPolicyRule,
+  HistoryItem,
   ManifestArtifact,
+  NotificationItem,
   Platform,
   PrivacyPolicyArtifact,
   Project,
@@ -36,16 +41,24 @@ interface ReleaseContextType {
   updateProject: (projectId: string, updates: Partial<Project>) => Promise<void>;
   cloneProject: (sourceProjectId: string, newPlatform?: Platform) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
-  manifestsByProject: Record<string, ManifestArtifact>;
-  privacyPoliciesByProject: Record<string, PrivacyPolicyArtifact>;
+  manifestsByProject: Record<string, ManifestArtifact | undefined>;
+  privacyPoliciesByProject: Record<string, PrivacyPolicyArtifact | undefined>;
   complianceByProject: Record<string, ComplianceFinding[]>;
   testCasesByProject: Record<string, TestCase[]>;
   customRulesByProject: Record<string, CustomPolicyRule[]>;
+  assetsByProject: Record<string, AssetItem[]>;
+  historyByProject: Record<string, HistoryItem[]>;
   activeManifest?: ManifestArtifact;
   activePrivacyPolicy?: PrivacyPolicyArtifact;
   activeCompliance: ComplianceFinding[];
   activeTestCases: TestCase[];
   activeCustomRules: CustomPolicyRule[];
+  activeAssets: AssetItem[];
+  activeHistory: HistoryItem[];
+  notifications: NotificationItem[];
+  isNotificationsOpen: boolean;
+  setIsNotificationsOpen: (open: boolean) => void;
+  handleMarkAllNotificationsAsRead: () => void;
   openBlockersCount: number;
   handleUploadManifest: (manifest: ManifestArtifact) => Promise<void>;
   handleUploadPrivacyPolicy: (policy: PrivacyPolicyArtifact) => Promise<void>;
@@ -56,6 +69,10 @@ interface ReleaseContextType {
   handleToggleComplianceStatus: (checkId: string) => Promise<void>;
   handleToggleCustomRuleStatus: (ruleId: string) => void;
   handleAddCustomRule: (rule: CustomPolicyRule) => void;
+  handleAddAsset: (asset: AssetItem) => void;
+  handleDeleteAsset: (assetId: string) => void;
+  handleAddHistoryItem: (item: HistoryItem) => void;
+  handleRunAiAudit: () => Promise<AiAuditResult | null>;
   isNewProjectOpen: boolean;
   setIsNewProjectOpen: (open: boolean) => void;
   isLoading: boolean;
@@ -63,15 +80,53 @@ interface ReleaseContextType {
 
 const ReleaseContext = createContext<ReleaseContextType | undefined>(undefined);
 
+const defaultInitialHistory: Record<string, HistoryItem[]> = {
+  "pulsefit-android": [
+    {
+      event: "Release Readiness Assessment Generated",
+      person: "ReleaseIQ Automated Engine",
+      time: "Today, 11:45 AM",
+      detail: "Evaluated store compliance rules against AndroidManifest.xml and Data Safety policy.",
+    },
+    {
+      event: "AndroidManifest.xml Analyzed",
+      person: "Parv Tiwari (Project Owner)",
+      time: "Aug 15, 2026",
+      detail: "Parsed AndroidManifest.xml — 4 permissions detected.",
+    },
+    {
+      event: "Privacy Policy Validated",
+      person: "Legal Team",
+      time: "Aug 14, 2026",
+      detail: "Evaluated 4 data safety clauses against Google Play policy.",
+    },
+    {
+      event: "Release Suite Initialized",
+      person: "Parv Tiwari",
+      time: "Aug 12, 2026",
+      detail: "Created Android release project targeting Google Play Store release.",
+    },
+  ],
+};
+
+const defaultInitialAssets: Record<string, AssetItem[]> = {
+  "pulsefit-android": [
+    { id: "a1", name: "release-aab-2.4.0.aab", type: "Android App Bundle (AAB)", size: "84.2 MB", status: "Ready", uploadedAt: Date.now() - 3600000 },
+    { id: "a2", name: "store-screenshots.zip", type: "Store Phone Screenshots", size: "18.7 MB", status: "Needs review", uploadedAt: Date.now() - 7200000 },
+    { id: "a3", name: "feature-graphic.png", type: "Google Play Feature Graphic (1024x500)", size: "1.2 MB", status: "Ready", uploadedAt: Date.now() - 86400000 },
+  ],
+};
+
 export function ReleaseProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [activeProjectId, setActiveProjectId] = useState<string>(initialProjects[0].id);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Per-project state stores
-  const [manifestsByProject, setManifestsByProject] = useState<Record<string, ManifestArtifact>>(initialManifests);
-  const [privacyPoliciesByProject, setPrivacyPoliciesByProject] = useState<Record<string, PrivacyPolicyArtifact>>(initialPrivacyPolicies);
+  // Per-project stores
+  const [manifestsByProject, setManifestsByProject] = useState<Record<string, ManifestArtifact | undefined>>(initialManifests);
+  const [privacyPoliciesByProject, setPrivacyPoliciesByProject] = useState<Record<string, PrivacyPolicyArtifact | undefined>>(initialPrivacyPolicies);
   const [complianceByProject, setComplianceByProject] = useState<Record<string, ComplianceFinding[]>>({
     "pulsefit-android": initialChecks,
   });
@@ -79,6 +134,9 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     "pulsefit-android": initialTestCases,
   });
   const [customRulesByProject, setCustomRulesByProject] = useState<Record<string, CustomPolicyRule[]>>({});
+  const [assetsByProject, setAssetsByProject] = useState<Record<string, AssetItem[]>>(defaultInitialAssets);
+  const [historyByProject, setHistoryByProject] = useState<Record<string, HistoryItem[]>>(defaultInitialHistory);
+  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(new Set());
 
   // 1. Initial Load: Fetch live projects from backend
   useEffect(() => {
@@ -91,7 +149,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
           setActiveProjectId(liveProjects[0].id);
         }
       } catch {
-        // Retain initial mock projects if backend is offline
+        // Fallback to local memory stores
       } finally {
         setIsLoading(false);
       }
@@ -99,7 +157,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     fetchInitialData();
   }, []);
 
-  // 2. Fetch project-specific compliance, test cases, and artifacts when active project changes
+  // 2. Fetch project details when active project changes
   useEffect(() => {
     if (!activeProjectId) return;
 
@@ -115,14 +173,14 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         if (liveCompliance.status === "fulfilled" && liveCompliance.value.length > 0) {
           setComplianceByProject((prev) => ({ ...prev, [activeProjectId]: liveCompliance.value }));
         }
-        if (liveTests.status === "fulfilled" && liveTests.value.length > 0) {
+        if (liveTests.status === "fulfilled") {
           setTestCasesByProject((prev) => ({ ...prev, [activeProjectId]: liveTests.value }));
         }
-        if (liveManifest.status === "fulfilled" && liveManifest.value) {
-          setManifestsByProject((prev) => ({ ...prev, [activeProjectId]: liveManifest.value }));
+        if (liveManifest.status === "fulfilled") {
+          setManifestsByProject((prev) => ({ ...prev, [activeProjectId]: liveManifest.value || undefined }));
         }
-        if (livePolicy.status === "fulfilled" && livePolicy.value) {
-          setPrivacyPoliciesByProject((prev) => ({ ...prev, [activeProjectId]: livePolicy.value }));
+        if (livePolicy.status === "fulfilled") {
+          setPrivacyPoliciesByProject((prev) => ({ ...prev, [activeProjectId]: livePolicy.value || undefined }));
         }
       } catch {
         // Fallback to local memory stores
@@ -133,22 +191,73 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
   }, [activeProjectId]);
 
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? initialProjects[0];
-  const activeManifest = manifestsByProject[activeProjectId] ?? initialManifests[activeProjectId];
-  const activePrivacyPolicy = privacyPoliciesByProject[activeProjectId] ?? initialPrivacyPolicies[activeProjectId];
-  const activeCompliance = complianceByProject[activeProjectId] ?? initialChecks;
-  const activeTestCases = testCasesByProject[activeProjectId] ?? initialTestCases;
+  const activeManifest = manifestsByProject[activeProjectId];
+  const activePrivacyPolicy = privacyPoliciesByProject[activeProjectId];
+  const activeCompliance = complianceByProject[activeProjectId] ?? [];
+  const activeTestCases = testCasesByProject[activeProjectId] ?? [];
   const activeCustomRules = customRulesByProject[activeProjectId] ?? activeProject.customPolicy?.rules ?? [];
+  const activeAssets = assetsByProject[activeProjectId] ?? [];
+  const activeHistory = historyByProject[activeProjectId] ?? [];
 
   const openBlockersCount = activeProject.platform === "Custom Policy"
     ? activeCustomRules.filter((r) => r.status === "Blocked").length
     : activeCompliance.filter((c) => c.status === "Blocked").length;
+
+  // Dynamic notification items generated from real state
+  const notifications: NotificationItem[] = [
+    ...activeCompliance
+      .filter((c) => c.status === "Blocked")
+      .map((c) => ({
+        id: `notif-${c.id}`,
+        title: `Release Blocker: ${c.title}`,
+        message: c.detail,
+        type: "blocker" as const,
+        timestamp: Date.now(),
+        read: readNotificationIds.has(`notif-${c.id}`),
+        link: "/compliance",
+      })),
+    ...(!activeManifest
+      ? [
+          {
+            id: `notif-missing-manifest-${activeProjectId}`,
+            title: "Action Required: AndroidManifest.xml Missing",
+            message: "Upload AndroidManifest.xml to evaluate target SDK and sensitive permissions.",
+            type: "warning" as const,
+            timestamp: Date.now(),
+            read: readNotificationIds.has(`notif-missing-manifest-${activeProjectId}`),
+            link: "/uploads",
+          },
+        ]
+      : []),
+    ...(!activePrivacyPolicy
+      ? [
+          {
+            id: `notif-missing-policy-${activeProjectId}`,
+            title: "Action Required: Privacy Policy Missing",
+            message: "Upload or paste your Privacy Policy to audit required data safety clauses.",
+            type: "warning" as const,
+            timestamp: Date.now(),
+            read: readNotificationIds.has(`notif-missing-policy-${activeProjectId}`),
+            link: "/uploads",
+          },
+        ]
+      : []),
+  ];
+
+  const handleMarkAllNotificationsAsRead = () => {
+    const allIds = new Set(notifications.map((n) => n.id));
+    setReadNotificationIds(allIds);
+    notifyToast({
+      title: "All notifications marked as read",
+      icon: "success",
+    });
+  };
 
   const selectProject = (projectId: string) => {
     setActiveProjectId(projectId);
   };
 
   const updateProject = async (projectId: string, updates: Partial<Project>) => {
-    // Optimistic local update
     setProjects((current) =>
       current.map((project) =>
         project.id === projectId ? { ...project, ...updates } : project
@@ -158,7 +267,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     try {
       await api.projects.update(projectId, updates);
     } catch {
-      // Retain optimistic update
+      // Local optimistic state preserved
     }
   };
 
@@ -196,29 +305,21 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
       platform: targetPlatform,
       packageId: clonedPackage,
       status: "Needs review",
-      readinessScore: 70,
+      readinessScore: 0,
     };
 
     setProjects((current) => [clonedProject, ...current]);
-    if (testCasesByProject[sourceProjectId]) {
-      setTestCasesByProject((current) => ({
-        ...current,
-        [clonedId]: testCasesByProject[sourceProjectId].map((tc) => ({
-          ...tc,
-          id: `tc-cloned-${Date.now().toString(36).slice(-3)}-${tc.id.slice(-3)}`,
-          status: "Ready",
-        })),
-      }));
-    }
-    if (complianceByProject[sourceProjectId]) {
-      setComplianceByProject((current) => ({
-        ...current,
-        [clonedId]: complianceByProject[sourceProjectId].map((c) => ({
-          ...c,
-          status: "Warning",
-        })),
-      }));
-    }
+    setHistoryByProject((prev) => ({
+      ...prev,
+      [clonedId]: [
+        {
+          event: "Project Cloned",
+          person: "Project Owner",
+          time: "Just now",
+          detail: `Cloned from ${source.name} targeting ${targetPlatform}.`,
+        },
+      ],
+    }));
 
     setActiveProjectId(clonedId);
     notifyToast({
@@ -239,7 +340,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     try {
       await api.projects.delete(projectId);
     } catch {
-      // Local deletion handled
+      // Local deletion
     }
 
     notifyToast({
@@ -254,17 +355,19 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
       ? `policy.${fields.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.suite`
       : `com.${fields.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.app`;
 
+    const formattedTarget = new Date(`${fields.releaseTarget}T00:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
     try {
       const liveNewProject = await api.projects.create({
         name: fields.name,
         platform: fields.platform,
         category: fields.category || (isCustomPolicy ? "Security & Governance" : "Health & Fitness"),
         description: fields.description,
-        releaseTarget: new Date(`${fields.releaseTarget}T00:00:00`).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
+        releaseTarget: formattedTarget,
         packageId,
         customPolicy: fields.customPolicy,
       });
@@ -273,46 +376,104 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         setProjects((current) => [liveNewProject, ...current]);
         setActiveProjectId(liveNewProject.id);
         setIsNewProjectOpen(false);
+
+        // Initialize clean slate stores
+        setManifestsByProject((prev) => ({ ...prev, [liveNewProject.id]: undefined }));
+        setPrivacyPoliciesByProject((prev) => ({ ...prev, [liveNewProject.id]: undefined }));
+        setTestCasesByProject((prev) => ({ ...prev, [liveNewProject.id]: [] }));
+        setAssetsByProject((prev) => ({ ...prev, [liveNewProject.id]: [] }));
+        setHistoryByProject((prev) => ({
+          ...prev,
+          [liveNewProject.id]: [
+            {
+              event: "Project Release Suite Initialized",
+              person: "Project Owner",
+              time: "Just now",
+              detail: `Created ${fields.platform} release suite with package ID ${packageId}.`,
+            },
+          ],
+        }));
+
         notifyToast({
-          title: `Created new project "${liveNewProject.name}"`,
+          title: `Created project "${liveNewProject.name}" with clean audit slate`,
           icon: "success",
         });
         return;
       }
     } catch {
-      // Offline fallback creation
+      // Local creation fallback
     }
 
+    const localId = `proj-${Date.now().toString(36)}`;
     const localProject: Project = {
-      id: crypto.randomUUID(),
+      id: localId,
       name: fields.name,
       platform: fields.platform,
       description: fields.description,
-      releaseTarget: new Date(`${fields.releaseTarget}T00:00:00`).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
+      releaseTarget: formattedTarget,
       packageId,
       version: "1.0.0",
-      category: fields.category || (isCustomPolicy ? "Security & Governance" : "Productivity"),
-      releaseNotes: isCustomPolicy ? "Initial corporate compliance evaluation suite." : "Initial release.",
-      readinessScore: fields.customPolicy ? 78 : 65,
+      category: fields.category || (isCustomPolicy ? "Security & Governance" : "Health & Fitness"),
+      releaseNotes: isCustomPolicy ? "Initial corporate compliance evaluation suite." : "Initial release candidate.",
+      readinessScore: 0,
       status: "Needs review",
       customPolicy: fields.customPolicy,
     };
 
+    const initialBaselineFindings: ComplianceFinding[] = [
+      {
+        id: "chk-manifest-missing",
+        title: "AndroidManifest.xml Artifact Missing",
+        status: "Blocked",
+        severity: "High",
+        owner: "Android Dev",
+        detail: "No AndroidManifest.xml has been uploaded for permission and SDK level verification.",
+        category: "Artifact Verification",
+        guidelineRef: "Store Submission Readiness Standard §1.1",
+        remediation: "Upload AndroidManifest.xml in the Uploads & Verification Center.",
+      },
+      {
+        id: "chk-privacy-missing",
+        title: "Privacy Policy Document Missing",
+        status: "Blocked",
+        severity: "High",
+        owner: "Legal",
+        detail: "No Privacy Policy document has been uploaded for clause evaluation.",
+        category: "Data Safety",
+        guidelineRef: "Play Console User Data Policy §4.8",
+        remediation: "Upload Privacy Policy document or paste text in Uploads & Verification Center.",
+      },
+    ];
+
     setProjects((current) => [localProject, ...current]);
+    setManifestsByProject((prev) => ({ ...prev, [localId]: undefined }));
+    setPrivacyPoliciesByProject((prev) => ({ ...prev, [localId]: undefined }));
+    setComplianceByProject((prev) => ({ ...prev, [localId]: initialBaselineFindings }));
+    setTestCasesByProject((prev) => ({ ...prev, [localId]: [] }));
+    setAssetsByProject((prev) => ({ ...prev, [localId]: [] }));
+    setHistoryByProject((prev) => ({
+      ...prev,
+      [localId]: [
+        {
+          event: "Project Release Suite Initialized",
+          person: "Project Owner",
+          time: "Just now",
+          detail: `Created ${fields.platform} release suite with package ID ${packageId}.`,
+        },
+      ],
+    }));
+
     if (fields.customPolicy?.rules) {
       setCustomRulesByProject((current) => ({
         ...current,
-        [localProject.id]: fields.customPolicy?.rules || [],
+        [localId]: fields.customPolicy?.rules || [],
       }));
     }
-    setActiveProjectId(localProject.id);
+
+    setActiveProjectId(localId);
     setIsNewProjectOpen(false);
     notifyToast({
-      title: `Created new project "${localProject.name}"`,
+      title: `Created project "${localProject.name}" (0% score, clean slate)`,
       icon: "success",
     });
   };
@@ -351,7 +512,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
   };
 
   const handleToggleComplianceStatus = async (checkId: string) => {
-    const existing = complianceByProject[activeProjectId] ?? initialChecks;
+    const existing = complianceByProject[activeProjectId] ?? [];
     const targetCheck = existing.find((c) => c.id === checkId || c.title.toLowerCase() === checkId.toLowerCase());
     const nextStatus: RuleStatus = targetCheck?.status === "Passed" ? "Blocked" : "Passed";
 
@@ -366,15 +527,15 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     recalculateProjectScore(updated, activeCustomRules);
 
     notifyToast({
-      title: "Compliance check status updated",
-      icon: "info",
+      title: `Compliance check marked as ${nextStatus}`,
+      icon: nextStatus === "Passed" ? "success" : "warning",
     });
 
     if (targetCheck) {
       try {
         await api.compliance.updateStatus(activeProjectId, targetCheck.id, nextStatus);
       } catch {
-        // Local state already updated
+        // Local state preserved
       }
     }
   };
@@ -405,20 +566,31 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
       [activeProjectId]: manifest,
     }));
 
-    const hasLocationRisk = manifest.permissions.some(
-      (p) => p.name.includes("LOCATION") && p.risk === "High"
+    // Dynamic client evaluation
+    const evaluation = evaluateClientCompliance(activeProject, manifest, activePrivacyPolicy);
+    setComplianceByProject((prev) => ({ ...prev, [activeProjectId]: evaluation.findings }));
+    setProjects((current) =>
+      current.map((p) =>
+        p.id === activeProjectId
+          ? { ...p, readinessScore: evaluation.readinessScore, status: evaluation.status }
+          : p
+      )
     );
 
-    setComplianceByProject((current) => {
-      const existing = current[activeProjectId] ?? initialChecks;
-      const updated: ComplianceFinding[] = existing.map((check) =>
-        check.id === "chk-2" || check.title.toLowerCase().includes("location")
-          ? { ...check, status: (hasLocationRisk ? "Blocked" : "Passed") as RuleStatus }
-          : check
-      );
-      recalculateProjectScore(updated, activeCustomRules);
-      return { ...current, [activeProjectId]: updated };
-    });
+    // Record audit history event
+    const highRiskCount = manifest.permissions.filter((p) => p.risk === "High").length;
+    setHistoryByProject((prev) => ({
+      ...prev,
+      [activeProjectId]: [
+        {
+          event: "AndroidManifest.xml Uploaded & Audited",
+          person: "ReleaseIQ Engine",
+          time: "Just now",
+          detail: `Extracted ${manifest.permissions.length} permissions (${highRiskCount} high risk), Target SDK ${manifest.targetSdkVersion ?? 34}.`,
+        },
+        ...(prev[activeProjectId] ?? []),
+      ],
+    }));
 
     try {
       await api.artifacts.uploadManifest(activeProjectId, undefined, manifest.name);
@@ -433,26 +605,40 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
       [activeProjectId]: policy,
     }));
 
-    setComplianceByProject((current) => {
-      const existing = current[activeProjectId] ?? initialChecks;
-      const updated: ComplianceFinding[] = existing.map((check) =>
-        check.id === "chk-1" || check.title.toLowerCase().includes("privacy")
-          ? { ...check, status: "Passed" as RuleStatus }
-          : check
-      );
-      recalculateProjectScore(updated, activeCustomRules);
-      return { ...current, [activeProjectId]: updated };
-    });
+    // Dynamic client evaluation
+    const evaluation = evaluateClientCompliance(activeProject, activeManifest, policy);
+    setComplianceByProject((prev) => ({ ...prev, [activeProjectId]: evaluation.findings }));
+    setProjects((current) =>
+      current.map((p) =>
+        p.id === activeProjectId
+          ? { ...p, readinessScore: evaluation.readinessScore, status: evaluation.status }
+          : p
+      )
+    );
+
+    // Record audit history event
+    setHistoryByProject((prev) => ({
+      ...prev,
+      [activeProjectId]: [
+        {
+          event: "Privacy Policy Document Validated",
+          person: "ReleaseIQ Engine",
+          time: "Just now",
+          detail: `Audited ${policy.clauses.length} privacy & data safety clauses against store guidelines.`,
+        },
+        ...(prev[activeProjectId] ?? []),
+      ],
+    }));
 
     try {
-      await api.artifacts.uploadPrivacyPolicy(activeProjectId, undefined, policy.fileName);
+      await api.artifacts.uploadPrivacyPolicy(activeProjectId, undefined, policy.content || policy.fileName);
     } catch {
       // Local state preserved
     }
   };
 
   const handleToggleTestCaseStatus = async (testCaseId: string) => {
-    const existing = testCasesByProject[activeProjectId] ?? initialTestCases;
+    const existing = testCasesByProject[activeProjectId] ?? [];
     let nextStatus: TestCase["status"] = "Ready";
 
     const updated = existing.map((tc) => {
@@ -483,7 +669,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
 
   const handleAddTestCase = async (newTestCase: TestCase) => {
     setTestCasesByProject((current) => {
-      const existing = current[activeProjectId] ?? initialTestCases;
+      const existing = current[activeProjectId] ?? [];
       notifyToast({
         title: `Added test case "${newTestCase.title}"`,
         icon: "success",
@@ -503,7 +689,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
 
   const handleUpdateTestCase = async (updatedTestCase: TestCase) => {
     setTestCasesByProject((current) => {
-      const existing = current[activeProjectId] ?? initialTestCases;
+      const existing = current[activeProjectId] ?? [];
       notifyToast({
         title: `Updated test case "${updatedTestCase.title}"`,
         icon: "success",
@@ -525,7 +711,7 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
 
   const handleDeleteTestCase = async (testCaseId: string) => {
     setTestCasesByProject((current) => {
-      const existing = current[activeProjectId] ?? initialTestCases;
+      const existing = current[activeProjectId] ?? [];
       notifyToast({
         title: "Test case removed from suite",
         icon: "info",
@@ -555,6 +741,59 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const handleAddAsset = (asset: AssetItem) => {
+    setAssetsByProject((current) => ({
+      ...current,
+      [activeProjectId]: [asset, ...(current[activeProjectId] ?? [])],
+    }));
+    notifyToast({
+      title: `Asset "${asset.name}" queued for release`,
+      icon: "success",
+    });
+  };
+
+  const handleDeleteAsset = (assetId: string) => {
+    setAssetsByProject((current) => ({
+      ...current,
+      [activeProjectId]: (current[activeProjectId] ?? []).filter((a) => a.id !== assetId),
+    }));
+    notifyToast({
+      title: "Asset removed from release bundle",
+      icon: "info",
+    });
+  };
+
+  const handleAddHistoryItem = (item: HistoryItem) => {
+    setHistoryByProject((current) => ({
+      ...current,
+      [activeProjectId]: [item, ...(current[activeProjectId] ?? [])],
+    }));
+  };
+
+  const handleRunAiAudit = async (): Promise<AiAuditResult | null> => {
+    try {
+      const result = await api.ai.audit(activeProjectId);
+      if (result) {
+        setHistoryByProject((prev) => ({
+          ...prev,
+          [activeProjectId]: [
+            {
+              event: "AI Policy Audit Executed (Groq)",
+              person: "ReleaseIQ AI Assistant",
+              time: "Just now",
+              detail: result.executiveSummary || "Completed deep semantic policy scan and restricted permissions audit.",
+            },
+            ...(prev[activeProjectId] ?? []),
+          ],
+        }));
+        return result;
+      }
+    } catch {
+      // Fallback local response
+    }
+    return null;
+  };
+
   return (
     <ReleaseContext.Provider
       value={{
@@ -572,11 +811,19 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         complianceByProject,
         testCasesByProject,
         customRulesByProject,
+        assetsByProject,
+        historyByProject,
         activeManifest,
         activePrivacyPolicy,
         activeCompliance,
         activeTestCases,
         activeCustomRules,
+        activeAssets,
+        activeHistory,
+        notifications,
+        isNotificationsOpen,
+        setIsNotificationsOpen,
+        handleMarkAllNotificationsAsRead,
         openBlockersCount,
         handleUploadManifest,
         handleUploadPrivacyPolicy,
@@ -587,6 +834,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         handleToggleComplianceStatus,
         handleToggleCustomRuleStatus,
         handleAddCustomRule,
+        handleAddAsset,
+        handleDeleteAsset,
+        handleAddHistoryItem,
+        handleRunAiAudit,
         isNewProjectOpen,
         setIsNewProjectOpen,
         isLoading,

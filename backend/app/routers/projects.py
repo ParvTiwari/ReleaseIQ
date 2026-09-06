@@ -177,14 +177,40 @@ def create_project(
         platform=payload.platform,
         description=payload.description,
         release_target=payload.release_target,
-        readiness_score=78 if is_custom else 65,
+        readiness_score=0,
         status="Needs review",
         custom_policy_json=payload.custom_policy_json,
     )
     db.add(project)
     db.commit()
     db.refresh(project)
-    seed_default_project_data(db, project.id)
+
+    # Initialize baseline checklist requiring manifest and privacy policy uploads
+    baseline_missing_manifest = ComplianceFinding(
+        project_id=project.id,
+        title="AndroidManifest.xml Artifact Missing",
+        status="Blocked",
+        severity="High",
+        owner="Android Dev",
+        detail="No AndroidManifest.xml has been uploaded for permission and SDK level audit.",
+        category="Artifact Verification",
+        guideline_ref="Store Submission Readiness Standard §1.1",
+        remediation="Upload AndroidManifest.xml in the Uploads & Verification Center.",
+    )
+    baseline_missing_policy = ComplianceFinding(
+        project_id=project.id,
+        title="Privacy Policy Document Missing",
+        status="Blocked",
+        severity="High",
+        owner="Legal",
+        detail="No Privacy Policy document has been uploaded for clause evaluation.",
+        category="Data Safety",
+        guideline_ref="Play Console User Data Policy §4.8",
+        remediation="Upload Privacy Policy document or paste text in Uploads & Verification Center.",
+    )
+    db.add(baseline_missing_manifest)
+    db.add(baseline_missing_policy)
+    db.commit()
 
     return project
 

@@ -4,6 +4,7 @@ from app.routers.artifacts import router as artifacts_router
 from app.routers.compliance import router as compliance_router
 from app.routers.test_cases import router as test_cases_router
 from app.routers.reports import router as reports_router
+from app.routers.ai import router as ai_router
 
 __all__ = [
     "auth_router",
@@ -12,4 +13,5 @@ __all__ = [
     "compliance_router",
     "test_cases_router",
     "reports_router",
+    "ai_router",
 ]

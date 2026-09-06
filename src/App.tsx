@@ -12,14 +12,14 @@ import { ProfilePage } from "./components/auth/ProfilePage";
 import { ProtectedRoute, PublicOnlyRoute } from "./components/auth/ProtectedRoute";
 import { SignInPage } from "./components/auth/SignInPage";
 import { SignUpPage } from "./components/auth/SignUpPage";
+import { CopyReviewPage } from "./components/CopyReviewPage";
 import { Dashboard } from "./components/Dashboard";
+import { HistoryPage } from "./components/HistoryPage";
 import { NewProjectModal } from "./components/NewProjectModal";
 import { Projects } from "./components/Projects";
 import { ReportPage } from "./components/ReportPage";
 import {
   CompliancePage,
-  CopyReviewPage,
-  HistoryPage,
   TestCasesPage,
 } from "./components/StaticReleasePages";
 import { UploadsPage } from "./components/UploadsPage";
@@ -115,7 +115,11 @@ function MainWorkspaceLayout() {
           <Route
             path="/app-details"
             element={
-              <AppDetails project={activeProject} onSave={saveAppDetails} />
+              <AppDetails
+                project={activeProject}
+                onSave={saveAppDetails}
+                onNavigateToUploads={() => navigate("/uploads")}
+              />
             }
           />
           <Route
@@ -157,7 +161,12 @@ function MainWorkspaceLayout() {
           />
           <Route
             path="/copy-review"
-            element={<CopyReviewPage project={activeProject} />}
+            element={
+              <CopyReviewPage
+                project={activeProject}
+                onSaveCopy={(updates) => saveAppDetails(updates)}
+              />
+            }
           />
           <Route
             path="/reports"

@@ -18,11 +18,9 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { copyFindings as defaultCopyFindings, historyItems as defaultHistoryItems } from "../data/mockRelease";
 import type {
   ComplianceFinding,
   CustomPolicyRule,
-  HistoryItem,
   Project,
   TestCase,
 } from "../types/release";
@@ -575,86 +573,3 @@ export function TestCasesPage({
   );
 }
 
-export function CopyReviewPage({ project }: { project: Project }) {
-  return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6">
-      <PageIntro project={project} eyebrow="Store listing & copy" title="Store Listing Quality Review" />
-      <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Copy Review Findings</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {defaultCopyFindings.map((finding) => (
-              <div key={finding.field} className="rounded-md border border-border p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-semibold text-sm text-foreground">{finding.field}</p>
-                  <Badge tone={toneForStatus(finding.status)}>{finding.status}</Badge>
-                </div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">{finding.note}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Live Store Listing Preview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-lg border border-border bg-background p-5 space-y-4">
-              <div className="flex items-center gap-3.5">
-                <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-                  <MessageSquareText className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="font-bold text-foreground text-base">{project.name}</p>
-                  <p className="text-xs text-muted-foreground">{project.category} · {project.platform}</p>
-                </div>
-              </div>
-              <div className="space-y-1.5 border-t border-border pt-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">What's New in Version {project.version}</p>
-                <p className="text-xs leading-6 text-foreground bg-accent/40 rounded p-3">{project.releaseNotes}</p>
-              </div>
-              <div className="space-y-1 border-t border-border pt-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Package Identifier</p>
-                <p className="text-xs font-mono text-muted-foreground">{project.packageId}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-    </div>
-  );
-}
-
-export function HistoryPage({ project }: { project: Project }) {
-  return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6">
-      <PageIntro project={project} eyebrow="Audit Trail" title="Release Audit History" />
-      <Card>
-        <CardContent className="grid gap-4 p-6">
-          {defaultHistoryItems.map((item) => (
-            <div
-              key={`${item.event}-${item.time}`}
-              className="grid gap-3 border-b border-border pb-4 last:border-0 last:pb-0 sm:grid-cols-[auto_1fr_auto] sm:items-start"
-            >
-              <div className="grid h-9 w-9 place-items-center rounded-md bg-accent text-primary">
-                {item.person.includes("ReleaseIQ") ? <FileCheck2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-              </div>
-              <div>
-                <p className="font-semibold text-sm text-foreground">{item.event}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground leading-5">{item.detail}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">Actor: <strong>{item.person}</strong></p>
-              </div>
-              <p className="text-xs text-muted-foreground font-mono">{item.time}</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-      <div className="flex items-center gap-2 rounded-md border border-border bg-card p-4 text-xs text-muted-foreground">
-        <Info className="h-4 w-4 shrink-0 text-primary" />
-        Activity audit log is automatically updated as manifests, policies, and QA sign-offs occur.
-      </div>
-    </div>
-  );
-}

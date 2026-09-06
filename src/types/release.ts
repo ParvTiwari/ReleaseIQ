@@ -87,6 +87,51 @@ export type ManifestArtifact = {
   permissions: ParsedPermission[];
   targetSdkVersion?: number;
   minSdkVersion?: number;
+  features?: string[];
+  usesCleartextTraffic?: boolean;
+  isAndroidAuto?: boolean;
+  isWearOS?: boolean;
+};
+
+export type AssetItem = {
+  id: string;
+  name: string;
+  type: string;
+  size: string;
+  status: "Ready" | "Needs review" | "Blocked";
+  uploadedAt: number;
+};
+
+export type NotificationItem = {
+  id: string;
+  title: string;
+  message: string;
+  type: "blocker" | "warning" | "info" | "success";
+  timestamp: number;
+  read: boolean;
+  link?: string;
+};
+
+export type AiAuditResult = {
+  executiveSummary: string;
+  restrictedPermissionsAnalysis: Array<{
+    permission: string;
+    risk: string;
+    justificationRequired: boolean;
+    storeGuidance: string;
+  }>;
+  categoryCompliance: {
+    isAutomotive: boolean;
+    automotiveStatus: string;
+    isWearable: boolean;
+    wearableStatus: string;
+    details: string;
+  };
+  privacyPolicyConsistency: {
+    status: string;
+    missingDisclosures: string[];
+  };
+  actionableChecklist: string[];
 };
 
 export type PrivacyClauseCheck = {
@@ -150,13 +195,25 @@ export type ComplianceRuleDefinition = {
   id: string;
   platform: "Android" | "iOS" | "Universal" | "Custom Policy";
   storeGuidelineRef: string;
-  category: "Permissions" | "Privacy & Safety" | "Store Copy" | "Security & SDKs" | "Monetization";
+  category:
+    | "Permissions"
+    | "Privacy & Safety"
+    | "Store Copy"
+    | "Security & SDKs"
+    | "Monetization"
+    | "Target API Level"
+    | "Sensitive Permissions"
+    | "Data Safety"
+    | "Families & Children"
+    | "Quality & Functionality"
+    | "Store Listing Copy"
+    | string;
   title: string;
   description: string;
   targetArtifact: "manifest" | "privacy_policy" | "app_metadata" | "custom_doc";
   severity: Severity;
   defaultStatus: RuleStatus;
-  owner: "Legal" | "Android" | "iOS" | "Security" | "Product" | "QA";
+  owner: string;
   remediationGuide: string;
   docUrl: string;
   version?: string;

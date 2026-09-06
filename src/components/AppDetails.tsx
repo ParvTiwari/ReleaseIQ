@@ -43,7 +43,15 @@ function detailsFor(project: Project): AppDetailsFields {
   return { name, packageId, version, category, releaseNotes, platform };
 }
 
-export function AppDetails({ project, onSave }: { project: Project; onSave: (details: AppDetailsFields) => void }) {
+export function AppDetails({
+  project,
+  onSave,
+  onNavigateToUploads,
+}: {
+  project: Project;
+  onSave: (details: AppDetailsFields) => void;
+  onNavigateToUploads?: () => void;
+}) {
   const [form, setForm] = useState<AppDetailsFields>(() => detailsFor(project));
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -107,7 +115,17 @@ export function AppDetails({ project, onSave }: { project: Project; onSave: (det
                   </p>
                 </div>
               </div>
-              <Button variant="secondary" className="text-xs shrink-0">
+              <Button
+                variant="secondary"
+                className="text-xs shrink-0"
+                onClick={() => {
+                  if (onNavigateToUploads) {
+                    onNavigateToUploads();
+                  } else {
+                    notifyToast({ title: "Navigate to Uploads tab to replace policy file", icon: "info" });
+                  }
+                }}
+              >
                 <UploadCloud className="h-4 w-4 mr-1.5" /> Re-upload Policy File
               </Button>
             </div>
