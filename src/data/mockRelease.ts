@@ -221,6 +221,56 @@ export const initialManifests: Record<string, ManifestArtifact> = {
     targetSdkVersion: 34,
     minSdkVersion: 26,
   },
+  "medtrack-ios": {
+    name: "Info.plist",
+    size: 3840,
+    type: "application/x-plist",
+    lastModified: 1723700000000,
+    uploadedAt: 1723700000000,
+    permissions: [
+      {
+        name: "NSCameraUsageDescription (Camera Sensor)",
+        risk: "High",
+        description: 'Purpose: "MedTrack needs camera access to scan prescription barcodes and medication labels."',
+        playStoreGuidance: "App Store Guideline 5.1.1: Clear purpose string required.",
+        requiredJustification: true,
+      },
+      {
+        name: "NSLocationWhenInUseUsageDescription (Foreground Location)",
+        risk: "High",
+        description: 'Purpose: "Your location is used to locate nearby 24/7 pharmacies and emergency medical centers."',
+        playStoreGuidance: "App Store Guideline 5.1.1: Purpose string must clearly describe why location is needed.",
+        requiredJustification: true,
+      },
+      {
+        name: "NSUserTrackingUsageDescription (App Tracking Transparency)",
+        risk: "High",
+        description: 'Purpose: "Your data will be used to measure advertising effectiveness and deliver relevant health tips."',
+        playStoreGuidance: "App Store Guideline 5.1.2: Mandatory if app links user data with third-party tracking SDKs.",
+        requiredJustification: true,
+      },
+      {
+        name: "NSHealthShareUsageDescription (HealthKit Read)",
+        risk: "High",
+        description: 'Purpose: "MedTrack reads step count and heart rate metrics from Apple HealthKit for wellness tracking."',
+        playStoreGuidance: "Apple Guideline 5.1.3: Health data cannot be shared with third parties for marketing.",
+        requiredJustification: true,
+      },
+      {
+        name: "NSFaceIDUsageDescription (Biometric Security)",
+        risk: "Medium",
+        description: 'Purpose: "Authenticate with Face ID to securely unlock your confidential health records."',
+        playStoreGuidance: "LocalAuthentication framework usage description must state security purpose.",
+        requiredJustification: false,
+      },
+    ],
+    targetSdkVersion: 18,
+    minSdkVersion: 17,
+    features: ["HealthKit Framework", "CoreLocation GPS", "CarPlay Navigation & Audio", "Background Mode: remote-notification"],
+    usesCleartextTraffic: false,
+    isAndroidAuto: true,
+    isWearOS: true,
+  },
 };
 
 export const initialPrivacyPolicies: Record<string, PrivacyPolicyArtifact> = {
@@ -229,6 +279,41 @@ export const initialPrivacyPolicies: Record<string, PrivacyPolicyArtifact> = {
     uploadedAt: 1723700000000,
     status: "Needs review",
     clauses: defaultPrivacyClauses,
+  },
+  "medtrack-ios": {
+    fileName: "MedTrack-AppStore-Privacy-Policy.pdf",
+    uploadedAt: 1723700000000,
+    status: "Ready",
+    clauses: [
+      {
+        id: "clause-data-collect",
+        title: "User Data Collection Categories",
+        category: "Data Collection",
+        status: "Passed",
+        detail: "Discloses health metrics, device identifiers, and prescription scan metadata.",
+      },
+      {
+        id: "clause-user-rights",
+        title: "In-App & Web Account Deletion (§5.1.1(v))",
+        category: "User Rights",
+        status: "Passed",
+        detail: "Self-service account deletion portal implemented inside app settings and at https://medtrack.app/delete-account.",
+      },
+      {
+        id: "clause-third-party",
+        title: "Third-Party Analytics Disclosures",
+        category: "Third-Party Sharing",
+        status: "Passed",
+        detail: "Explicitly discloses Sentry telemetry and prohibits health data sharing for advertising.",
+      },
+      {
+        id: "clause-retention",
+        title: "HealthKit Privacy & TLS Encryption",
+        category: "Retention & Security",
+        status: "Passed",
+        detail: "Enforces HIPAA-compliant encryption standards and zero plain-text storage.",
+      },
+    ],
   },
 };
 
@@ -278,6 +363,45 @@ export const initialTestCases: TestCase[] = [
     steps: ["Perform fresh app install", "Monitor outgoing telemetry packets prior to clicking 'Accept & Continue'"],
     expectedResult: "No telemetry or ad-identifier requests are dispatched before explicit consent.",
   },
+  {
+    id: "tc-6",
+    title: "App Tracking Transparency (ATT) Prompt on iOS 17+",
+    priority: "High",
+    area: "Privacy",
+    status: "Ready",
+    steps: [
+      "Launch app on iOS 17 / iOS 18 device",
+      "Verify ATTrackingManager requestTrackingAuthorization displays exact Info.plist purpose text",
+      "Tap 'Ask App not to Track' and verify IDFA returns zeros",
+    ],
+    expectedResult: "ATT prompt renders correctly without blocking main thread; IDFA is zeroed if denied.",
+  },
+  {
+    id: "tc-7",
+    title: "StoreKit 2 In-App Purchase & 'Restore Purchases' Button",
+    priority: "High",
+    area: "Store Policy",
+    status: "Ready",
+    steps: [
+      "Navigate to Premium Subscription paywall",
+      "Verify 'Restore Purchases' button is visible and active (Guideline §3.1.2)",
+      "Trigger restore purchase with Apple Sandbox test account",
+    ],
+    expectedResult: "Transaction history restored successfully with receipt validation.",
+  },
+  {
+    id: "tc-8",
+    title: "Face ID Biometric Authentication Fallback to Passcode",
+    priority: "Medium",
+    area: "Security",
+    status: "Ready",
+    steps: [
+      "Cover TrueDepth camera to force Face ID failure",
+      "Tap 'Enter Device Passcode' fallback button",
+      "Enter local device PIN",
+    ],
+    expectedResult: "App unlocks medical records safely upon passcode verification without freezing.",
+  },
 ];
 
 export const testCases = initialTestCases.map((tc) => tc.title);
@@ -291,7 +415,7 @@ export const copyFindings: CopyFinding[] = [
 
 export const historyItems: HistoryItem[] = [
   { event: "Readiness scan completed", person: "ReleaseIQ Engine", time: "Today at 10:45 AM", detail: "Found 1 high blocker (Background location) and 2 warnings." },
-  { event: "Manifest uploaded", person: "Parv Tiwari", time: "Aug 15, 2026", detail: "Parsed AndroidManifest.xml — 4 permissions detected." },
+  { event: "Manifest uploaded", person: "Parv Tiwari", time: "Aug 15, 2026", detail: "Parsed AndroidManifest.xml: 4 permissions detected." },
   { event: "Privacy policy validated", person: "Legal Team", time: "Aug 14, 2026", detail: "Evaluated 4 data safety clauses against Google Play policy." },
   { event: "Release project created", person: "Parth Gupta", time: "Aug 12, 2026", detail: "Targeting Android Google Play Store release for Aug 18, 2026." },
 ];

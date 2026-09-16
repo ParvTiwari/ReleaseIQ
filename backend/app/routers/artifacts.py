@@ -9,7 +9,7 @@ from app.models.manifest import ManifestArtifact
 from app.models.privacy import PrivacyPolicyArtifact
 from app.models.project import Project
 from app.services.compliance_engine import calculate_readiness_score, evaluate_project_compliance
-from app.services.manifest_parser import parse_android_manifest
+from app.services.manifest_parser import parse_android_manifest, parse_info_plist
 from app.services.privacy_parser import analyze_privacy_policy
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["Artifacts & Parsers"])
@@ -29,9 +29,9 @@ def sync_project_compliance(db: Session, project: Project):
             "targetSdkVersion": manifest.target_sdk,
             "minSdkVersion": manifest.min_sdk,
             "permissions": json.loads(manifest.permissions_json or "[]"),
-            "usesCleartextTraffic": "usesCleartextTraffic=\"true\"" in (manifest.raw_xml or "").lower(),
-            "isAndroidAuto": "car.application" in (manifest.raw_xml or "").lower() or "automotive" in (manifest.raw_xml or "").lower(),
-            "isWearOS": "watch" in (manifest.raw_xml or "").lower() or "wearable" in (manifest.raw_xml or "").lower(),
+            "usesCleartextTraffic": "usesCleartextTraffic=\"true\"" in (manifest.raw_xml or "").lower() or "nsallowsarbitraryloads" in (manifest.raw_xml or "").lower(),
+            "isAndroidAuto": "car.application" in (manifest.raw_xml or "").lower() or "automotive" in (manifest.raw_xml or "").lower() or "carplay" in (manifest.raw_xml or "").lower(),
+            "isWearOS": "watch" in (manifest.raw_xml or "").lower() or "wearable" in (manifest.raw_xml or "").lower() or "watchkit" in (manifest.raw_xml or "").lower(),
         }
 
     privacy_clauses = None
@@ -82,19 +82,20 @@ async def upload_manifest(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
     content = ""
-    filename = "AndroidManifest.xml"
+    filename = "Info.plist" if project.platform == "iOS" else "AndroidManifest.xml"
 
     if file:
-        filename = file.filename or "AndroidManifest.xml"
+        filename = file.filename or filename
         file_bytes = await file.read()
         content = file_bytes.decode("utf-8", errors="ignore")
     elif raw_xml:
         content = raw_xml
 
     if not content.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No XML content provided")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No XML or Plist content provided")
 
-    parsed = parse_android_manifest(content)
+    is_plist = filename.lower().endswith(".plist") or "<plist" in content.lower() or project.platform == "iOS"
+    parsed = parse_info_plist(content) if is_plist else parse_android_manifest(content)
 
     manifest = db.query(ManifestArtifact).filter(ManifestArtifact.project_id == project_id).first()
     if not manifest:

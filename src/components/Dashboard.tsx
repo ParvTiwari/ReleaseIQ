@@ -1,16 +1,24 @@
 import {
   AlertTriangle,
+  Apple,
   CheckCircle2,
   ChevronRight,
+  FileCode2,
   FileText,
   FileUp,
   ListChecks,
   ShieldAlert,
   ShieldCheck,
+  Smartphone,
 } from "lucide-react";
 import { useState } from "react";
+import { useRelease } from "../context/ReleaseContext";
+import { SAMPLE_ARTIFACTS, type SampleArtifactInfo } from "../data/sampleArtifacts";
+import { notifyModal, notifyToast } from "../lib/alerts";
+import { parseAndroidManifestXml, parseInfoPlistXml } from "../lib/parsers";
 import type { ComplianceFinding, CustomPolicyRule, Project, TestCase } from "../types/release";
 import { RuleInspectorModal } from "./RuleInspectorModal";
+import { SampleFilePreviewModal } from "./SampleFilePreviewModal";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -48,6 +56,45 @@ export function Dashboard({
   const isCustomPolicy = activeProject.platform === "Custom Policy" || !!activeProject.customPolicy;
   const [inspectingFinding, setInspectingFinding] = useState<ComplianceFinding | CustomPolicyRule | null>(null);
 
+  const { selectProject, handleUploadManifest } = useRelease();
+  const [selectedSample, setSelectedSample] = useState<SampleArtifactInfo | null>(null);
+  const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
+
+  const handleOpenSampleModal = (sampleKey: "android-manifest" | "ios-plist") => {
+    setSelectedSample(SAMPLE_ARTIFACTS[sampleKey]);
+    setIsSampleModalOpen(true);
+  };
+
+  const handlePutSampleToAnalysis = async (sample: SampleArtifactInfo) => {
+    const isIos = sample.platform === "iOS";
+
+    if (isIos && activeProject.platform !== "iOS") {
+      const iosProj = projects.find((p) => p.platform === "iOS");
+      if (iosProj) selectProject(iosProj.id);
+    } else if (!isIos && activeProject.platform === "iOS") {
+      const androidProj = projects.find((p) => p.platform === "Android");
+      if (androidProj) selectProject(androidProj.id);
+    }
+
+    const parsed = isIos
+      ? parseInfoPlistXml(sample.rawContent, sample.fileName, sample.rawContent.length)
+      : parseAndroidManifestXml(sample.rawContent, sample.fileName, sample.rawContent.length);
+
+    await handleUploadManifest(parsed);
+    setIsSampleModalOpen(false);
+
+    notifyToast({
+      title: isIos ? "iOS Info.plist loaded into analysis" : "AndroidManifest.xml loaded into analysis",
+      icon: "success",
+    });
+
+    notifyModal({
+      title: isIos ? "iOS Info.plist Analysis Complete" : "AndroidManifest.xml Analysis Complete",
+      text: `Successfully evaluated ${sample.fileName}. Compliance findings, readiness score, and QA test cases updated.`,
+      icon: "success",
+    });
+  };
+
   const displayFindings = isCustomPolicy && activeProject.customPolicy
     ? activeProject.customPolicy.rules.map((rule) => ({
         id: rule.id,
@@ -64,6 +111,37 @@ export function Dashboard({
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
+      {/* Interactive Sample Evaluation Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-accent text-foreground shrink-0 border border-border">
+            <FileCode2 className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Interactive Sample Evaluation</p>
+            <h3 className="text-sm font-semibold text-foreground">Evaluate release readiness against sample production manifests</h3>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleOpenSampleModal("android-manifest")}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-accent/60 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent hover:border-primary/40"
+          >
+            <Smartphone className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Test Android Manifest</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleOpenSampleModal("ios-plist")}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-accent/60 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent hover:border-primary/40"
+          >
+            <Apple className="h-3.5 w-3.5 text-sky-500" />
+            <span>Test iOS Info.plist</span>
+          </button>
+        </div>
+      </div>
       <section className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
         <div className="rounded-lg border border-border bg-card p-5 shadow-panel">
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
@@ -307,6 +385,14 @@ export function Dashboard({
           }}
         />
       )}
+
+      {/* Interactive Quick-Test Demo Modal with 'Put to Analysis Now' */}
+      <SampleFilePreviewModal
+        sample={selectedSample}
+        isOpen={isSampleModalOpen}
+        onClose={() => setIsSampleModalOpen(false)}
+        onPutToAnalysis={handlePutSampleToAnalysis}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Apple,
   Bot,
   CheckCircle2,
   FileArchive,
@@ -7,9 +8,11 @@ import {
   FileText,
   Image,
   Loader2,
+  Play,
   Plus,
   ShieldAlert,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   Trash2,
   UploadCloud,
@@ -17,6 +20,7 @@ import {
 } from "lucide-react";
 import { useId, useState, type ChangeEvent } from "react";
 import { useRelease } from "../context/ReleaseContext";
+import { SAMPLE_ARTIFACTS, type SampleArtifactInfo } from "../data/sampleArtifacts";
 import { notifyModal, notifyToast } from "../lib/alerts";
 import { parseAndroidManifestXml, parseInfoPlistXml, parsePrivacyPolicyText } from "../lib/parsers";
 import type {
@@ -28,6 +32,7 @@ import type {
   Project,
   Severity,
 } from "../types/release";
+import { SampleFilePreviewModal } from "./SampleFilePreviewModal";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -77,6 +82,8 @@ export function UploadsPage({
 }) {
   const {
     activeAssets,
+    projects,
+    selectProject,
     handleAddAsset,
     handleDeleteAsset,
     handleRunAiAudit,
@@ -92,6 +99,55 @@ export function UploadsPage({
   const [isPastingPolicy, setIsPastingPolicy] = useState(false);
   const [isAiAuditing, setIsAiAuditing] = useState(false);
   const [aiResult, setAiResult] = useState<AiAuditResult | null>(null);
+
+  // Quick-test demo sample modal state
+  const [selectedSample, setSelectedSample] = useState<SampleArtifactInfo | null>(null);
+  const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
+
+  const handleOpenSampleModal = (sampleKey: "android-manifest" | "ios-plist") => {
+    setSelectedSample(SAMPLE_ARTIFACTS[sampleKey]);
+    setIsSampleModalOpen(true);
+  };
+
+  const handlePutSampleToAnalysis = async (sample: SampleArtifactInfo) => {
+    const isIos = sample.platform === "iOS";
+
+    // If needed, switch active project to corresponding demo suite for maximum consistency
+    if (isIos && project.platform !== "iOS") {
+      const iosProj = projects.find((p) => p.platform === "iOS");
+      if (iosProj) {
+        selectProject(iosProj.id);
+      }
+    } else if (!isIos && project.platform === "iOS") {
+      const androidProj = projects.find((p) => p.platform === "Android");
+      if (androidProj) {
+        selectProject(androidProj.id);
+      }
+    }
+
+    // Parse and submit the sample content
+    const parsed = isIos
+      ? parseInfoPlistXml(sample.rawContent, sample.fileName, sample.rawContent.length)
+      : parseAndroidManifestXml(sample.rawContent, sample.fileName, sample.rawContent.length);
+
+    onUploadManifest(parsed);
+    setIsSampleModalOpen(false);
+    setActiveTab("manifest");
+
+    const highRiskCount = parsed.permissions.filter((p) => p.risk === "High").length;
+    const targetSdk = parsed.targetSdkVersion ?? (isIos ? 18 : 34);
+
+    notifyToast({
+      title: isIos ? "iOS Info.plist loaded into analysis" : "AndroidManifest.xml loaded into analysis",
+      icon: "success",
+    });
+
+    notifyModal({
+      title: isIos ? "iOS Info.plist Ingested & Evaluated" : "AndroidManifest.xml Ingested & Evaluated",
+      text: `Successfully parsed ${sample.fileName}. Extracted ${parsed.permissions.length} permissions and purpose strings (${highRiskCount} High Risk). Target runtime: ${targetSdk}. Compliance scores and QA test cases updated.`,
+      icon: "success",
+    });
+  };
 
   const handleManifestFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -262,10 +318,14 @@ export function UploadsPage({
         <Card>
           <CardContent className="flex items-center justify-between gap-4 p-5">
             <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">Manifest Status</p>
+              <p className="text-xs font-medium uppercase text-muted-foreground">
+                {project.platform === "iOS" ? "Info.plist Status" : "Manifest Status"}
+              </p>
               <p className="mt-1 text-xl font-bold">{manifest ? "Uploaded & Parsed" : "Missing"}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {manifest ? `${manifest.permissions.length} permissions detected` : "Required for release audit"}
+                {manifest
+                  ? `${manifest.permissions.length} ${project.platform === "iOS" ? "purpose keys & modes" : "permissions"} detected`
+                  : `Required for ${project.platform === "iOS" ? "App Store" : "Play Store"} audit`}
               </p>
             </div>
             <div className={`grid h-11 w-11 place-items-center rounded-lg ${manifest ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
@@ -295,7 +355,11 @@ export function UploadsPage({
               <p className="text-xs font-medium uppercase text-muted-foreground">Sensitive Risks</p>
               <p className="mt-1 text-xl font-bold">{highRiskCount} High Risk</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {highRiskCount > 0 ? "Requires Play Store justification" : "No critical permission flags"}
+                {highRiskCount > 0
+                  ? project.platform === "iOS"
+                    ? "Requires App Store justification strings"
+                    : "Requires Play Store justification"
+                  : "No critical permission flags"}
               </p>
             </div>
             <div className={`grid h-11 w-11 place-items-center rounded-lg ${highRiskCount > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
@@ -316,8 +380,8 @@ export function UploadsPage({
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <FileCode2 className="h-4 w-4" />
-          Android Manifest & Permissions
+          {project.platform === "iOS" ? <Apple className="h-4 w-4" /> : <FileCode2 className="h-4 w-4" />}
+          {project.platform === "iOS" ? "iOS Info.plist & Capabilities" : "Android Manifest & Permissions"}
         </button>
         <button
           type="button"
@@ -345,35 +409,48 @@ export function UploadsPage({
         </button>
       </div>
 
-      {/* TAB 1: Android Manifest Analyzer */}
+      {/* TAB 1: Android Manifest / iOS Plist Analyzer */}
       {activeTab === "manifest" && (
         <div className="grid gap-6">
           {!manifest ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-accent text-primary">
-                  <UploadCloud className="h-7 w-7" />
+                  {project.platform === "iOS" ? <Apple className="h-7 w-7" /> : <UploadCloud className="h-7 w-7" />}
                 </div>
-                <h3 className="mt-4 text-lg font-semibold">Upload AndroidManifest.xml</h3>
+                <h3 className="mt-4 text-lg font-semibold">
+                  {project.platform === "iOS" ? "Upload iOS Info.plist" : "Upload AndroidManifest.xml"}
+                </h3>
                 <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                  Upload your app's Android manifest to automatically extract declared permissions, verify target SDK level, and identify store compliance risks.
+                  {project.platform === "iOS"
+                    ? "Upload your app's iOS Info.plist file to automatically audit App Store Guideline 5.1.1 purpose strings, App Tracking Transparency (ATT), ATS network security, and background modes."
+                    : "Upload your app's Android manifest to automatically extract declared permissions, verify target SDK level, and identify store compliance risks."}
                 </p>
-                <div className="mt-6 flex justify-center">
+                <div className="mt-6 flex flex-wrap justify-center gap-3">
                   <label
                     htmlFor={manifestInputId}
                     className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground shadow-panel hover:bg-primary/90"
                   >
-                    <UploadCloud className="h-4 w-4" /> Choose AndroidManifest.xml
+                    <UploadCloud className="h-4 w-4" />
+                    <span>{project.platform === "iOS" ? "Choose Info.plist (.plist / .xml)" : "Choose AndroidManifest.xml (.xml)"}</span>
                   </label>
-                    <input
+                  <input
                     id={manifestInputId}
                     type="file"
                     accept=".xml,.plist,text/xml,application/xml"
                     onChange={handleManifestFile}
                     className="sr-only"
                   />
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSampleModal(project.platform === "iOS" ? "ios-plist" : "android-manifest")}
+                    className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-accent"
+                  >
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>{project.platform === "iOS" ? "Load Sample iOS Plist" : "Load Sample Manifest"}</span>
+                  </button>
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">Accepted formats: XML (.xml)</p>
+                <p className="mt-3 text-xs text-muted-foreground">Accepted formats: XML (.xml), Property List (.plist)</p>
               </CardContent>
             </Card>
           ) : (
@@ -715,6 +792,14 @@ export function UploadsPage({
           </div>
         </div>
       )}
+
+      {/* Interactive Quick-Test Demo Modal with 'Put to Analysis Now' */}
+      <SampleFilePreviewModal
+        sample={selectedSample}
+        isOpen={isSampleModalOpen}
+        onClose={() => setIsSampleModalOpen(false)}
+        onPutToAnalysis={handlePutSampleToAnalysis}
+      />
     </div>
   );
 }

@@ -92,7 +92,7 @@ const defaultInitialHistory: Record<string, HistoryItem[]> = {
       event: "AndroidManifest.xml Analyzed",
       person: "Parv Tiwari (Project Owner)",
       time: "Aug 15, 2026",
-      detail: "Parsed AndroidManifest.xml — 4 permissions detected.",
+      detail: "Parsed AndroidManifest.xml: 4 permissions detected.",
     },
     {
       event: "Privacy Policy Validated",

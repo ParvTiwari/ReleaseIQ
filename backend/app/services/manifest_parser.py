@@ -316,3 +316,84 @@ def parse_android_manifest(xml_content: str) -> Dict[str, Any]:
         "isAndroidAuto": is_android_auto,
         "isWearOS": is_wear_os,
     }
+
+
+def parse_info_plist(plist_content: str) -> Dict[str, Any]:
+    """
+    Parses iOS Info.plist XML / string and returns structured iOS permissions,
+    usage description purpose strings, ATS policies, and background modes.
+    """
+    package_name = "com.releaseiq.ios"
+    bundle_match = re.search(r'<key>CFBundleIdentifier<\/key>\s*<string>([^<]+)<\/string>', plist_content, re.IGNORECASE)
+    if bundle_match:
+        package_name = bundle_match.group(1)
+
+    min_sdk = 16
+    min_os_match = re.search(r'<key>MinimumOSVersion<\/key>\s*<string>([^<]+)<\/string>', plist_content, re.IGNORECASE)
+    if min_os_match:
+        try:
+            min_sdk = int(float(min_os_match.group(1)))
+        except ValueError:
+            pass
+
+    target_sdk = 18
+    permissions: List[Dict[str, Any]] = []
+    features: List[str] = []
+    uses_cleartext_traffic = False
+    is_carplay = False
+    is_watchkit = False
+
+    plist_keys = {
+        "NSLocationWhenInUseUsageDescription": ("High", "Foreground location access for real-time navigation.", "App Store Guideline 5.1.1: Clear purpose string required.", True),
+        "NSLocationAlwaysAndWhenInUseUsageDescription": ("High", "Continuous background location tracking.", "App Store Guideline 5.1.5: Prominent disclosure required.", True),
+        "NSCameraUsageDescription": ("High", "Camera sensor capture.", "App Store Guideline 5.1.1: Clear purpose string required.", True),
+        "NSMicrophoneUsageDescription": ("High", "Microphone audio recording.", "App Store Guideline 5.1.1: Explain user benefit.", True),
+        "NSUserTrackingUsageDescription": ("High", "App Tracking Transparency (ATT) IDFA tracking.", "App Store Guideline 5.1.2: Mandatory for third-party tracking.", True),
+        "NSPhotoLibraryUsageDescription": ("High", "Photo library access.", "App Store Guideline 5.1.1: Prefer PHPickerViewController.", True),
+        "NSFaceIDUsageDescription": ("Medium", "Face ID biometric authentication.", "LocalAuthentication description required.", False),
+        "NSHealthShareUsageDescription": ("High", "HealthKit metric reading.", "Apple Guideline 5.1.3: Prohibits marketing data sharing.", True),
+        "NSHealthUpdateUsageDescription": ("High", "HealthKit metric logging.", "Apple Guideline 5.1.3: Explicit user consent required.", True),
+        "NSBluetoothAlwaysUsageDescription": ("Medium", "Bluetooth peripheral communication.", "State accessory connection rationale.", True),
+    }
+
+    for key, (risk, default_desc, guidance, justification) in plist_keys.items():
+        if key in plist_content:
+            match = re.search(rf'<key>{key}<\/key>\s*<string>([^<]*)<\/string>', plist_content, re.IGNORECASE)
+            desc = f'Purpose: "{match.group(1)}"' if match and match.group(1) else default_desc
+            permissions.append({
+                "name": f"{key} (iOS)",
+                "risk": risk,
+                "description": desc,
+                "playStoreGuidance": guidance,
+                "requiredJustification": justification,
+            })
+            if "Health" in key:
+                is_watchkit = True
+                features.append("HealthKit Framework")
+            if "Bluetooth" in key:
+                features.append("CoreBluetooth BLE")
+            if "Location" in key:
+                features.append("CoreLocation GPS")
+
+    if "<key>NSAllowsArbitraryLoads</key>\s*<true/>" in plist_content or ("NSAllowsArbitraryLoads" in plist_content and "<true/>" in plist_content):
+        uses_cleartext_traffic = True
+
+    if "CPTemplateApplicationSceneDelegate" in plist_content or "CarPlay" in plist_content:
+        is_carplay = True
+        features.append("CarPlay Navigation & Audio")
+
+    if "WKCompanionAppBundleIdentifier" in plist_content or "WatchKit" in plist_content:
+        is_watchkit = True
+        features.append("Apple WatchKit Extension")
+
+    return {
+        "packageName": package_name,
+        "minSdkVersion": min_sdk,
+        "targetSdkVersion": target_sdk,
+        "permissions": permissions,
+        "features": features,
+        "services": [],
+        "usesCleartextTraffic": uses_cleartext_traffic,
+        "isAndroidAuto": is_carplay,
+        "isWearOS": is_watchkit,
+    }
