@@ -415,7 +415,7 @@ export const copyFindings: CopyFinding[] = [
 
 export const historyItems: HistoryItem[] = [
   { event: "Readiness scan completed", person: "ReleaseIQ Engine", time: "Today at 10:45 AM", detail: "Found 1 high blocker (Background location) and 2 warnings." },
-  { event: "Manifest uploaded", person: "Parv Tiwari", time: "Aug 15, 2026", detail: "Parsed AndroidManifest.xml: 4 permissions detected." },
+  { event: "Manifest uploaded", person: "Parth Gupta", time: "Aug 15, 2026", detail: "Parsed AndroidManifest.xml: 4 permissions detected." },
   { event: "Privacy policy validated", person: "Legal Team", time: "Aug 14, 2026", detail: "Evaluated 4 data safety clauses against Google Play policy." },
   { event: "Release project created", person: "Parth Gupta", time: "Aug 12, 2026", detail: "Targeting Android Google Play Store release for Aug 18, 2026." },
 ];

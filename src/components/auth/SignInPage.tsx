@@ -102,11 +102,13 @@ export function SignInPage() {
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  onClick={() => handleQuickSignIn("Project Owner", "parv@releaseiq.io", "Parv Tiwari")}
-                  className="rounded border border-border bg-accent/30 p-2 text-center text-xs hover:bg-accent hover:border-primary/40 transition"
+                  onClick={() => handleQuickSignIn("Project Owner", "parth@releaseiq.io", "Parth Gupta")}
+                  className="rounded-lg border border-border p-3 text-left hover:border-primary/40 hover:bg-accent/30 transition flex items-center justify-between group"
                 >
-                  <p className="font-semibold text-[11px] text-foreground">Project Owner</p>
-                  <p className="text-[10px] text-muted-foreground">Parv T.</p>
+                  <div>
+                    <p className="text-xs font-semibold text-foreground group-hover:text-primary">Project Owner</p>
+                    <p className="text-[10px] text-muted-foreground">Parth G.</p>
+                  </div>
                 </button>
                 <button
                   type="button"

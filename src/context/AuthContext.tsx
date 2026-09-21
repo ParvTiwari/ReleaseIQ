@@ -22,12 +22,12 @@ interface AuthContextType {
 const STORAGE_KEY = "releaseiq_auth_user";
 
 const defaultUser: UserProfile = {
-  id: "usr-parv",
-  name: "Parv Tiwari",
-  email: "parvtiwari1@gmail.com",
+  id: "usr-parth",
+  name: "Parth Gupta",
+  email: "parthgupta@gmail.com",
   role: "Project Owner",
   organization: "ReleaseIQ Technologies",
-  avatarInitials: "PT",
+  avatarInitials: "PG",
   joinedDate: "August 2026",
   twoFactorEnabled: true,
 };
@@ -38,8 +38,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved !== null) {
-        return saved === "null" ? null : JSON.parse(saved);
+      if (saved !== null && saved !== "null") {
+        const parsed = JSON.parse(saved);
+        if (parsed.name && parsed.name.includes("Parv")) {
+          return defaultUser;
+        }
+        return parsed;
       }
     } catch {
       // ignore storage parsing error

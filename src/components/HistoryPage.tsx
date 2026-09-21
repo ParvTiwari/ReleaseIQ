@@ -33,7 +33,7 @@ export function HistoryPage({
 
   const [newEvent, setNewEvent] = useState({
     event: "",
-    person: "Parv Tiwari (Auditor)",
+    person: "Parth Gupta (Auditor)",
     detail: "",
   });
 
@@ -57,7 +57,7 @@ export function HistoryPage({
     };
 
     handleAddHistoryItem(logged);
-    setNewEvent({ event: "", person: "Parv Tiwari (Auditor)", detail: "" });
+    setNewEvent({ event: "", person: "Parth Gupta (Auditor)", detail: "" });
     setIsLogModalOpen(false);
     notifyToast({
       title: "Audit event recorded to release history",
@@ -103,7 +103,7 @@ export function HistoryPage({
       {/* Filter and Search Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-1 bg-muted p-1 rounded-md text-xs">
-          {(["All", "Automated", "Parv", "QA", "CI/CD"] as const).map((person) => (
+          {(["All", "Automated", "Parth", "QA", "CI/CD"] as const).map((person) => (
             <button
               type="button"
               key={person}

@@ -90,7 +90,7 @@ const defaultInitialHistory: Record<string, HistoryItem[]> = {
     },
     {
       event: "AndroidManifest.xml Analyzed",
-      person: "Parv Tiwari (Project Owner)",
+      person: "Parth Gupta (Project Owner)",
       time: "Aug 15, 2026",
       detail: "Parsed AndroidManifest.xml: 4 permissions detected.",
     },
@@ -102,7 +102,7 @@ const defaultInitialHistory: Record<string, HistoryItem[]> = {
     },
     {
       event: "Release Suite Initialized",
-      person: "Parv Tiwari",
+      person: "Parth Gupta",
       time: "Aug 12, 2026",
       detail: "Created Android release project targeting Google Play Store release.",
     },
