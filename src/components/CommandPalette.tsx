@@ -5,6 +5,7 @@ import {
   Command,
   FileCode2,
   FileText,
+  Fingerprint,
   LayoutDashboard,
   Plus,
   Search,
@@ -90,6 +91,7 @@ export function CommandPalette({
     { label: "Generated QA Test Cases Suite", path: "/test-cases", icon: ClipboardCheck, category: "Navigation" },
     { label: "Store Listing Copy Review", path: "/copy-review", icon: FileText, category: "Navigation" },
     { label: "Release Readiness Audit Report", path: "/reports", icon: FileText, category: "Navigation" },
+    { label: "QA Verification Dossier & Auditor Sign-Off", path: "/verification", icon: Fingerprint, category: "Navigation" },
     { label: "User Profile & Access Roles", path: "/profile", icon: User, category: "Navigation" },
   ].filter((item) => !q || item.label.toLowerCase().includes(q));
 

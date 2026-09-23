@@ -21,8 +21,20 @@ export type AppPage =
   | "test-cases"
   | "copy-review"
   | "reports"
+  | "verification"
   | "history"
   | "profile";
+
+export type AuditorSignature = {
+  auditorName: string;
+  auditorRole: string;
+  studentIdOrOrg: string;
+  courseCode: string;
+  signedAt: string;
+  verificationHash: string;
+  certified: boolean;
+  notes?: string;
+};
 
 export type UserRole = "Project Owner" | "QA Reviewer" | "Legal Auditor" | "Mobile Engineer";
 

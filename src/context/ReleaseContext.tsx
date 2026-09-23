@@ -19,6 +19,7 @@ import { evaluateClientCompliance } from "../lib/parsers";
 import type {
   AiAuditResult,
   AssetItem,
+  AuditorSignature,
   ComplianceFinding,
   CustomPolicyRule,
   HistoryItem,
@@ -55,6 +56,10 @@ interface ReleaseContextType {
   activeCustomRules: CustomPolicyRule[];
   activeAssets: AssetItem[];
   activeHistory: HistoryItem[];
+  auditorSignaturesByProject: Record<string, AuditorSignature | undefined>;
+  activeAuditorSignature?: AuditorSignature;
+  handleSaveAuditorSignature: (signature: AuditorSignature) => void;
+  handleClearAuditorSignature: () => void;
   notifications: NotificationItem[];
   isNotificationsOpen: boolean;
   setIsNotificationsOpen: (open: boolean) => void;
@@ -136,6 +141,14 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
   const [customRulesByProject, setCustomRulesByProject] = useState<Record<string, CustomPolicyRule[]>>({});
   const [assetsByProject, setAssetsByProject] = useState<Record<string, AssetItem[]>>(defaultInitialAssets);
   const [historyByProject, setHistoryByProject] = useState<Record<string, HistoryItem[]>>(defaultInitialHistory);
+  const [auditorSignaturesByProject, setAuditorSignaturesByProject] = useState<Record<string, AuditorSignature | undefined>>(() => {
+    try {
+      const saved = localStorage.getItem("releaseiq_auditor_signatures");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(new Set());
 
   // 1. Initial Load: Fetch live projects from backend
@@ -198,6 +211,54 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
   const activeCustomRules = customRulesByProject[activeProjectId] ?? activeProject.customPolicy?.rules ?? [];
   const activeAssets = assetsByProject[activeProjectId] ?? [];
   const activeHistory = historyByProject[activeProjectId] ?? [];
+  const activeAuditorSignature = auditorSignaturesByProject[activeProjectId];
+
+  const handleSaveAuditorSignature = (signature: AuditorSignature) => {
+    setAuditorSignaturesByProject((prev) => {
+      const updated = { ...prev, [activeProjectId]: signature };
+      try {
+        localStorage.setItem("releaseiq_auditor_signatures", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    setHistoryByProject((prev) => ({
+      ...prev,
+      [activeProjectId]: [
+        {
+          event: "PDQA Audit Dossier Verified & Signed",
+          person: signature.auditorName,
+          time: "Just now",
+          detail: `Certified release verification audit (${signature.auditorRole} - ${signature.studentIdOrOrg}). Hash: ${signature.verificationHash}`,
+        },
+        ...(prev[activeProjectId] ?? []),
+      ],
+    }));
+
+    notifyToast({
+      title: `Audit Dossier Signed by ${signature.auditorName}`,
+      icon: "success",
+    });
+  };
+
+  const handleClearAuditorSignature = () => {
+    setAuditorSignaturesByProject((prev) => {
+      const updated = { ...prev, [activeProjectId]: undefined };
+      try {
+        localStorage.setItem("releaseiq_auditor_signatures", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    notifyToast({
+      title: "Signature Cleared: Dossier Unlocked",
+      icon: "info",
+    });
+  };
 
   const openBlockersCount = activeProject.platform === "Custom Policy"
     ? activeCustomRules.filter((r) => r.status === "Blocked").length
@@ -820,6 +881,10 @@ export function ReleaseProvider({ children }: { children: ReactNode }) {
         activeCustomRules,
         activeAssets,
         activeHistory,
+        auditorSignaturesByProject,
+        activeAuditorSignature,
+        handleSaveAuditorSignature,
+        handleClearAuditorSignature,
         notifications,
         isNotificationsOpen,
         setIsNotificationsOpen,

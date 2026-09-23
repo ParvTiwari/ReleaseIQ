@@ -23,6 +23,7 @@ import {
   TestCasesPage,
 } from "./components/StaticReleasePages";
 import { UploadsPage } from "./components/UploadsPage";
+import { VerificationDossierPage } from "./components/VerificationDossierPage";
 import { AuthProvider } from "./context/AuthContext";
 import { ReleaseProvider, useRelease } from "./context/ReleaseContext";
 
@@ -43,6 +44,9 @@ function MainWorkspaceLayout() {
     activeCompliance,
     activeTestCases,
     activeCustomRules,
+    activeAuditorSignature,
+    handleSaveAuditorSignature,
+    handleClearAuditorSignature,
     openBlockersCount,
     handleUploadManifest,
     handleUploadPrivacyPolicy,
@@ -177,6 +181,22 @@ function MainWorkspaceLayout() {
                 privacyPolicy={activePrivacyPolicy}
                 complianceFindings={activeCompliance}
                 testCases={activeTestCases}
+                auditorSignature={activeAuditorSignature}
+              />
+            }
+          />
+          <Route
+            path="/verification"
+            element={
+              <VerificationDossierPage
+                project={activeProject}
+                manifest={activeManifest}
+                privacyPolicy={activePrivacyPolicy}
+                complianceFindings={activeCompliance}
+                testCases={activeTestCases}
+                auditorSignature={activeAuditorSignature}
+                onSaveSignature={handleSaveAuditorSignature}
+                onClearSignature={handleClearAuditorSignature}
               />
             }
           />

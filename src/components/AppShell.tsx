@@ -7,11 +7,13 @@ import {
   FileCheck2,
   FilePenLine,
   FileText,
+  Fingerprint,
   History,
   LayoutDashboard,
   LockKeyhole,
   LogOut,
   MessageSquareText,
+  Scale,
   Search,
   Settings,
   ShieldCheck,
@@ -37,6 +39,7 @@ const navItems: Array<{ label: string; icon: typeof LayoutDashboard; path: strin
   { label: "Test Cases", icon: ClipboardCheck, path: "/test-cases", page: "test-cases" },
   { label: "Copy Review", icon: MessageSquareText, path: "/copy-review", page: "copy-review" },
   { label: "Readiness Report", icon: FileCheck2, path: "/reports", page: "reports" },
+  { label: "Audit & Sign-Off", icon: Fingerprint, path: "/verification", page: "verification" },
   { label: "History", icon: History, path: "/history", page: "history" },
 ];
 
@@ -50,6 +53,7 @@ const pageTitles: Record<string, string> = {
   "/test-cases": "Generated QA Test Cases",
   "/copy-review": "Store Listing Copy Review",
   "/reports": "Release Readiness Audit Report",
+  "/verification": "QA Verification Dossier & Auditor Sign-Off",
   "/history": "Release History & Audit Timeline",
   "/profile": "User Profile & Access Roles",
 };
