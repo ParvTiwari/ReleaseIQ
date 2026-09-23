@@ -4,131 +4,93 @@ ReleaseIQ is an AI-powered mobile app release readiness and quality assurance pl
 
 The platform brings release checks into one dashboard: app details, privacy policy review, permission analysis, compliance findings, QA test case generation, readiness scoring, reports, and project history.
 
+> **Status as of this README:** Frontend, backend API, database, and an initial AI-assisted audit are built and working end to end. Everything below under "Shipped" is implemented in this codebase today — nothing described there is aspirational. See "Not Yet Shipped" for what's still outstanding.
+
 ## Problem We Are Solving
 
 Mobile app releases require teams to manually verify permissions, privacy policy content, store guideline requirements, QA artifacts, release notes, and compliance risks. This process is repetitive, fragmented, and easy to miss under deadline pressure.
 
-ReleaseIQ aims to make this process structured, faster, and more reliable by combining release workflow management with AI-assisted analysis.
+ReleaseIQ makes this process structured, faster, and more reliable by combining release workflow management with AI-assisted analysis.
 
-## What We Are Building
+## Shipped
 
-The final product will be a production-like SaaS web application with these core modules:
+The following is implemented, working, and demonstrable in this codebase today — not planned or mocked-only.
 
-- User authentication
-- Dashboard
-- Project management
-- App detail upload
-- Privacy policy upload and validation
-- Android manifest upload
-- Permission analysis
-- AI compliance analysis
-- AI test case generator
-- Release readiness assessment
-- Report generation
-- Project history
+**Frontend**
+- A working React 19 + TypeScript app with authenticated routing (sign in, sign up, forgot password, protected routes).
+- Every core screen is built and functional: dashboard, projects list, app details, uploads, permissions, compliance, test cases, copy review, reports, verification dossier, and history.
+- All of the above screens are wired to the live backend through `src/lib/api.ts` — they read and write real data, not just local mock state.
 
-## Current Phase
+**Backend**
+- A working FastAPI service (`backend/app/main.py`) with real routers for auth, projects, artifacts, compliance, test cases, reports, and AI.
+- SQLAlchemy models and a database layer that defaults to local SQLite (`releaseiq.db`) for zero-config dev and can be pointed at PostgreSQL via `DATABASE_URL`.
+- JWT-based authentication (`python-jose`, `passlib[bcrypt]`).
 
-We are currently building the frontend UI only.
+**Core analysis logic**
+- Real AndroidManifest.xml parsing and permission risk scoring via `defusedxml` (`backend/app/services/manifest_parser.py`) — not mocked.
+- A deterministic rule-based compliance engine (`backend/app/services/compliance_engine.py`) that evaluates findings against manifest/privacy data and computes a 0–100 readiness score plus Ready/Needs review/Blocked status.
+- An AI audit layer that calls the Groq API (Llama 3.3 70B) when `GROQ_API_KEY` is set, with automatic fallback to the local rule engine if the key is missing or the call fails — the app works with or without a live LLM.
+- Report generation and the verification dossier produce a real structured audit bundle with a SHA-256-based verification hash (`backend/app/routers/reports.py`), not placeholder text.
 
-At this stage:
+**Data**
+- The frontend still ships with initial mock/seed data (`src/data/mockRelease.ts`) used for first paint and as an offline fallback, but on load it fetches live projects, compliance findings, test cases, and artifacts from the backend and persists changes back to it.
 
-- Backend is not implemented yet.
-- AI analysis is not implemented yet.
-- Database is not connected yet.
-- All product data is mocked through frontend JSON/data files.
-- The goal is to finalize UI/UX, product flow, and clean frontend architecture first.
+## Not Yet Shipped
+
+- Automated test suites (Pytest, Postman, Playwright) — only a manual script exists today (`backend/test_api_endpoints.py`).
+- Production deployment setup (AWS), environment hardening, and secrets management.
+- Expanded AI capabilities beyond the current audit endpoint: privacy policy validation, permission risk explanations, and AI-generated release recommendations.
+- Accessibility and responsiveness passes across all screens.
 
 ## Tech Stack
 
 ### Frontend
 
-- React.js
-- TypeScript
+- React 19 + TypeScript
+- Vite
 - Tailwind CSS
 - shadcn/ui-inspired component structure
+- React Router
 - Lucide React icons
-- Vite
 
-### Future Backend
+### Backend
 
 - FastAPI
-- Python
-- PostgreSQL
+- SQLAlchemy
+- Pydantic / Pydantic Settings
+- SQLite (dev) / PostgreSQL (prod, via `DATABASE_URL`)
+- JWT auth (`python-jose`, `passlib[bcrypt]`)
+- `defusedxml` for safe AndroidManifest.xml parsing
 
-### Future AI Layer
+### AI Layer
 
-- LangChain
-- LangGraph
-- OpenAI, Gemini, or open-source LLMs
+- Groq API (Llama 3.3 70B, `llama-3.3-70b-versatile`) for AI-assisted compliance/readiness audits
+- Deterministic local rule engine as a fallback when no AI key is configured
 
-### Future Testing
+### Planned / Future
 
-- Pytest
-- Postman
-- Playwright
+- LangChain / LangGraph for more advanced AI workflows
+- Pytest, Postman, Playwright for automated testing
+- AWS for deployment
 
-### Future Cloud
+## Build Plan and Progress
 
-- AWS
+ReleaseIQ is being built iteratively, module by module. This tracks the original plan against what's actually done.
 
-## How We Are Going To Build It
+| Phase | Scope | Status |
+| :--- | :--- | :--- |
+| 1. Documentation & Product Planning | SRS, requirements, user stories, product flow, DB/API planning (`docs/ReleaseIQ_Documentation.md`) | **Done** |
+| 2. Frontend UI | Dashboard layout, reusable components, all core screens | **Done** |
+| 3. Backend API | FastAPI routers, SQLAlchemy models, JWT auth, live API wiring, file uploads | **Done** |
+| 4. AI Integration | Groq-based compliance/readiness audit with rule-engine fallback | **Partially done** — audit endpoint is live; privacy policy validation, permission risk explanations, and AI-generated test cases/recommendations are not yet built |
+| 5. Testing & Production Readiness | Pytest, Postman, Playwright, accessibility, deployment | **Not started** — only a manual API test script exists |
 
-We will build ReleaseIQ iteratively, module by module.
-
-### Phase 1: Documentation and Product Planning
-
-- Finalize SRS
-- Define functional and non-functional requirements
-- Define user roles and user stories
-- Design product flow and information architecture
-- Plan database schema and API contracts
-
-Documentation is available in:
-
-```text
-docs/ReleaseIQ_Documentation.md
-```
-
-### Phase 2: Frontend UI With Mock Data
-
-- Build responsive SaaS dashboard layout
-- Create reusable UI components
-- Add mock project data
-- Build dashboard, project, upload, compliance, permission, QA, report, and history screens
-- Keep code modular and ready for backend integration
-
-### Phase 3: Backend API
-
-- Create FastAPI backend
-- Add PostgreSQL database
-- Implement authentication
-- Replace mock data with real API calls
-- Add file upload handling for privacy policy and manifest files
-
-### Phase 4: AI Integration
-
-- Add AI-based compliance analysis
-- Add privacy policy validation
-- Add permission risk explanations
-- Generate QA test cases using LLMs
-- Generate release readiness recommendations
-
-### Phase 5: Testing and Production Readiness
-
-- Add frontend and backend tests
-- Add API testing through Postman
-- Add Playwright end-to-end tests
-- Improve accessibility and responsiveness
-- Prepare deployment setup
-
-## Current Frontend Setup
+## Running the Project
 
 ### Prerequisites
 
-Before running the project, install:
-
 - Node.js 20 or later
+- Python 3.10+
 - npm
 - Git
 
@@ -137,6 +99,7 @@ Check your installed versions:
 ```bash
 node -v
 npm -v
+python --version
 git --version
 ```
 
@@ -147,13 +110,7 @@ git clone https://github.com/Parth-Gupta-github/ReleaseIQ.git
 cd ReleaseIQ
 ```
 
-If you already have the project locally, open the project folder:
-
-```bash
-cd F:\Music\ReleaseIQ
-```
-
-### Install Dependencies
+### Frontend Setup
 
 Install dependencies:
 
@@ -161,11 +118,7 @@ Install dependencies:
 npm install
 ```
 
-This creates the `node_modules` folder and installs React, Vite, Tailwind CSS, TypeScript, and other frontend dependencies.
-
-### Start Development Server
-
-Run the development server:
+Start the development server:
 
 ```bash
 npm run dev
@@ -177,19 +130,11 @@ By default, Vite starts the app at:
 http://localhost:5173/
 ```
 
-Open this URL in your browser to view the ReleaseIQ UI.
-
-### Build the Project
-
 Build for production:
 
 ```bash
 npm run build
 ```
-
-This checks TypeScript and creates an optimized `dist/` build.
-
-### Preview Production Build
 
 Preview the production build:
 
@@ -197,32 +142,86 @@ Preview the production build:
 npm run preview
 ```
 
+### Backend Setup
+
+Install dependencies:
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+Start the backend server:
+
+```bash
+python backend/run_server.py
+```
+
+Or with Uvicorn directly:
+
+```bash
+uvicorn app.main:app --app-dir backend --reload --port 8000
+```
+
+Interactive API docs:
+
+- Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- ReDoc: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+
+Run the backend API test script:
+
+```bash
+python backend/test_api_endpoints.py
+```
+
+### Environment Variables (Backend)
+
+Set these in `backend/.env` (or your shell environment):
+
+| Variable | Purpose | Default |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | SQLite (dev) or PostgreSQL connection string | `sqlite:///./releaseiq.db` |
+| `SECRET_KEY` | JWT signing secret | dev placeholder — change for production |
+| `GROQ_API_KEY` | Enables live AI audits via Groq | unset (falls back to local rule engine) |
+| `GROQ_MODEL` | Groq model name | `llama-3.3-70b-versatile` |
+
 ### Useful Commands
 
 ```bash
-npm install      # Install project dependencies
-npm run dev      # Start local development server
-npm run build    # Create production build
-npm run preview  # Preview production build locally
+npm install                          # Install frontend dependencies
+npm run dev                          # Start frontend dev server
+npm run build                        # Create production frontend build
+npm run preview                      # Preview production frontend build
+pip install -r backend/requirements.txt   # Install backend dependencies
+python backend/run_server.py         # Start backend API server
+python backend/test_api_endpoints.py # Run backend API tests
 ```
 
 ### Troubleshooting
 
-If dependencies are missing or the app does not start, run:
-
-```bash
-npm install
-```
+If frontend dependencies are missing or the app does not start, run `npm install`.
 
 If the Vite port is already in use, Vite will show another available URL in the terminal.
 
-If TypeScript or build errors appear, run:
+If TypeScript or build errors appear, run `npm run build` and check the terminal output for the exact file and line number.
 
-```bash
-npm run build
-```
+If the backend fails to start, confirm `pip install -r backend/requirements.txt` completed successfully and that no other process is using port 8000.
 
-Then check the terminal output for the exact file and line number.
+## API Overview
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/auth/login` | Authenticate user & issue JWT |
+| `POST` | `/api/auth/register` | Register new account |
+| `GET` | `/api/projects` | List all release suites & compliance scores |
+| `POST` | `/api/projects` | Create a new project with store category |
+| `POST` | `/api/projects/{id}/clone` | Clone project to Android / iOS |
+| `POST` | `/api/projects/{id}/manifest` | Parse AndroidManifest.xml & permission risk |
+| `POST` | `/api/projects/{id}/privacy-policy` | Extract & audit privacy policy clauses |
+| `GET` | `/api/projects/{id}/compliance` | Fetch compliance evaluation findings |
+| `PATCH` | `/api/projects/{id}/compliance/{id}` | Update blocker status / apply exemptions |
+| `GET` | `/api/projects/{id}/test-cases` | Fetch / manage QA test cases |
+| `POST` | `/api/projects/{id}/ai/audit` | Run AI-assisted readiness audit (Groq, with rule-engine fallback) |
+| `GET` | `/api/projects/{id}/report` | Generate structured audit bundle with verification hash |
 
 ## Project Structure
 
@@ -232,12 +231,26 @@ ReleaseIQ/
 |   +-- README.md
 |   +-- ReleaseIQ_Documentation.md
 +-- src/
-|   +-- components/
-|   +-- data/
-|   +-- lib/
+|   +-- components/       # Screens (dashboard, uploads, compliance, reports, auth, etc.)
+|   +-- context/          # AuthContext, ReleaseContext (app-wide state + API wiring)
+|   +-- data/              # Seed/mock data used for first paint and fallback
+|   +-- lib/               # api.ts (backend client), parsers, report export, utils
+|   +-- types/             # Shared TypeScript types
 |   +-- App.tsx
 |   +-- main.tsx
 |   +-- styles.css
++-- backend/
+|   +-- app/
+|   |   +-- routers/       # auth, projects, artifacts, compliance, test_cases, reports, ai
+|   |   +-- services/      # manifest_parser, privacy_parser, compliance_engine, ai_service, auth_service
+|   |   +-- models/        # SQLAlchemy models
+|   |   +-- schemas/       # Pydantic request/response schemas
+|   |   +-- config.py
+|   |   +-- database.py
+|   |   +-- main.py
+|   +-- run_server.py
+|   +-- test_api_endpoints.py
+|   +-- requirements.txt
 +-- index.html
 +-- package.json
 +-- tailwind.config.js
@@ -247,16 +260,14 @@ ReleaseIQ/
 
 ## Development Approach
 
-The project will follow modern software engineering practices:
-
 - Component-based frontend architecture
 - Type-safe development with TypeScript
-- Mock-first UI development
-- Clear separation between UI, data, and utility logic
+- Deterministic rule engine as the source of truth, with AI as an assistive layer (not a single point of failure)
+- Clear separation between UI, data, and API/service logic
 - Scalable folder structure
 - Documentation-first planning
 - Incremental module development
 
 ## Status
 
-Initial documentation and initial dashboard UI have been started. The next frontend modules will be added one by one after each screen flow is refined.
+Everything listed under "Shipped" above is implemented and integrated in this codebase today. Remaining work is listed under "Not Yet Shipped" — primarily expanded AI capabilities, automated testing, accessibility, and production deployment.
