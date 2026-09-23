@@ -65,6 +65,8 @@ export function VerificationDossierPage({
   const [auditorNotes, setAuditorNotes] = useState(auditorSignature?.notes || "");
   const [isCertified, setIsCertified] = useState(auditorSignature?.certified || false);
   const [pasteWarning, setPasteWarning] = useState<string | null>(null);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const [simulatedFixedIds, setSimulatedFixedIds] = useState<Set<string>>(new Set());
 
   // Math metrics calculation
   const totalFindings = complianceFindings.length;
@@ -84,6 +86,34 @@ export function VerificationDossierPage({
   const riskIndex = (highSeverityCount * 3 + medSeverityCount * 1.5 + lowSeverityCount * 0.5).toFixed(1);
 
   const isApproved = project.readinessScore >= 80 && blockerFindings === 0;
+
+  // Simulated metrics
+  const simulatedNewlyPassed = Array.from(simulatedFixedIds).length;
+  const simulatedTotalPassed = Math.min(totalFindings, passedFindings + simulatedNewlyPassed);
+  const simulatedScore = totalFindings > 0 ? Math.round((simulatedTotalPassed / totalFindings) * 100) : 0;
+  const simulatedBlockersCount = Math.max(
+    0,
+    complianceFindings.filter((c) => c.status === "Blocked" && !simulatedFixedIds.has(c.id)).length
+  );
+  const isSimulatedApproved = simulatedScore >= 80 && simulatedBlockersCount === 0;
+
+  const toggleSimulatedFix = (id: string) => {
+    setSimulatedFixedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleCopyHash = () => {
+    if (!auditorSignature?.verificationHash) return;
+    navigator.clipboard.writeText(auditorSignature.verificationHash);
+    notifyToast({
+      title: "Verification Hash copied to clipboard!",
+      icon: "success",
+    });
+  };
 
   // Anti-Paste Handler
   const handlePasteAttempt = (e: React.ClipboardEvent) => {
@@ -139,6 +169,58 @@ export function VerificationDossierPage({
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleExportDossierMarkdown = () => {
+    const md = `# 🎓 ReleaseIQ PDQA Release Verification Audit Dossier
+**Project:** ${project.name} (\`${project.packageId}\`)  
+**Platform:** ${project.platform} | **Target SDK:** ${manifest?.targetSdkVersion ?? 34} | **Target:** ${project.releaseTarget}  
+**Audit Date:** ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}  
+**Verification Verdict:** ${isApproved ? "✅ **APPROVED FOR STORE RELEASE**" : "🚨 **RELEASE BLOCKED (GATE STOP)**"}
+
+---
+
+## 1. Mathematical Scoring Breakdown
+- **Formula:** $\\text{Readiness Score} = \\text{round}\\left(\\frac{N_{\\text{Passed}}}{N_{\\text{Total}}} \\times 100\\right)$
+- **Calculation:** $(${passedFindings} / ${totalFindings}) \\times 100 = ${project.readinessScore}\\%$
+- **Risk Severity Index:** ${riskIndex} pts (High: ${highSeverityCount} | Med: ${medSeverityCount} | Low: ${lowSeverityCount})
+- **QA Test Suite Pass Rate:** ${testPassRate}% (${passedTests}/${totalTests} Passed)
+
+---
+
+## 2. XML Artifact Inspection Trail
+${(manifest?.permissions || []).map((p, idx) => `- **STEP-${String(idx + 5).padStart(2, "0")}:** \`${p.name}\` — *${p.risk} Risk* (${p.description})`).join("\n")}
+
+---
+
+## 3. Compliance & Policy Trace
+${complianceFindings.map((cf) => `- [${cf.status === "Passed" ? "x" : " "}] **${cf.title}** (${cf.severity} Severity) — *${cf.owner}*\n  - *Detail:* ${cf.detail}${cf.remediation ? `\n  - *Remediation:* ${cf.remediation}` : ""}`).join("\n")}
+
+---
+
+## 4. QA Validation Matrix (${testCases.length} Tests)
+${testCases.map((tc) => `- **[${tc.status}]** \`${tc.id}\`: ${tc.title} (${tc.area})`).join("\n")}
+
+---
+
+## 5. Auditor Verification Sign-Off
+- **Auditor:** ${auditorSignature?.auditorName || "PENDING SIGNATURE"}
+- **Role & ID:** ${auditorSignature?.auditorRole || "N/A"} (${auditorSignature?.studentIdOrOrg || "N/A"})
+- **Course Context:** ${auditorSignature?.courseCode || "PDQA Coursework Final Submission"}
+- **Verification Hash:** \`${auditorSignature?.verificationHash || "UNSIGNED"}\`
+- **Certified At:** ${auditorSignature ? new Date(auditorSignature.signedAt).toISOString() : "N/A"}
+`;
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${project.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-pdqa-verification-dossier.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notifyToast({
+      title: "Academic Markdown Dossier exported!",
+      icon: "success",
+    });
   };
 
   const handleExportFullDossierJson = () => {
@@ -233,9 +315,12 @@ export function VerificationDossierPage({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 print:hidden">
+        <div className="flex flex-wrap items-center gap-2 shrink-0 print:hidden">
           <Button variant="secondary" onClick={handlePrint} className="h-8 text-xs px-2.5" title="Generate printable visual document or browser PDF">
             <Printer className="h-4 w-4 mr-1.5" /> Print / Save PDF
+          </Button>
+          <Button variant="secondary" onClick={handleExportDossierMarkdown} className="h-8 text-xs px-2.5" title="Export academic markdown report">
+            <FileText className="h-4 w-4 mr-1.5" /> Export Markdown
           </Button>
           <Button onClick={handleExportFullDossierJson} className="h-8 text-xs px-2.5" title="Export complete calculation and step trail data">
             <Download className="h-4 w-4 mr-1.5" /> Export Audit JSON
@@ -418,6 +503,82 @@ export function VerificationDossierPage({
                 <p className="text-[11px] mt-1">Status: {project.status}</p>
               </div>
             </div>
+          </div>
+
+          {/* Interactive Remediation & Math Simulator (Viva / Coursework Demo Tool) */}
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                  Interactive Remediation &amp; Formula Simulator (Viva Demo)
+                </span>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => setIsSimulatorOpen((prev) => !prev)}
+                className="h-7 text-xs px-2"
+              >
+                {isSimulatorOpen ? "Collapse Simulator" : "Simulate Blocker Fixes"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Toggle simulated engineering or legal fixes to see how the mathematical calculation updates in real time.
+            </p>
+
+            {isSimulatorOpen && (
+              <div className="space-y-3 pt-2 border-t border-primary/20">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {complianceFindings
+                    .filter((c) => c.status === "Blocked" || c.status === "Warning")
+                    .map((item) => {
+                      const isSimFixed = simulatedFixedIds.has(item.id);
+                      return (
+                        <label
+                          key={item.id}
+                          className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer text-xs transition select-none ${
+                            isSimFixed
+                              ? "border-emerald-300 bg-emerald-50/60 text-emerald-900"
+                              : "border-border bg-card text-foreground hover:bg-accent/40"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSimFixed}
+                            onChange={() => toggleSimulatedFix(item.id)}
+                            className="mt-0.5 h-3.5 w-3.5 rounded border-input text-primary focus:ring-primary"
+                          />
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 font-semibold">
+                              <span>{item.title}</span>
+                              <Badge tone={item.status === "Blocked" ? "danger" : "warning"} className="text-[10px] px-1 py-0">
+                                {item.status}
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground line-clamp-1">{item.detail}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                </div>
+
+                {/* Simulated Math Outcome Strip */}
+                <div className="rounded-lg bg-card p-3 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-foreground">Simulated Math Outcome:</span>
+                    <p className="text-muted-foreground font-mono">
+                      Formula: ({simulatedTotalPassed} / {totalFindings}) × 100 = <strong>{simulatedScore}%</strong> (Δ +{simulatedScore - project.readinessScore}%)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-muted-foreground">Remaining Blockers: {simulatedBlockersCount}</span>
+                    <Badge tone={isSimulatedApproved ? "success" : "danger"}>
+                      {isSimulatedApproved ? "Simulated: APPROVED" : "Simulated: BLOCKED"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -744,9 +905,18 @@ export function VerificationDossierPage({
                         second: "2-digit",
                       })}
                     </p>
-                    <p className="text-[10px] font-mono text-emerald-700 font-semibold">
-                      Hash: {auditorSignature.verificationHash}
-                    </p>
+                    <div className="flex items-center justify-end gap-1.5 pt-0.5">
+                      <span className="text-[10px] font-mono text-emerald-800 font-semibold truncate max-w-xs">
+                        Hash: {auditorSignature.verificationHash}
+                      </span>
+                      <button
+                        onClick={handleCopyHash}
+                        className="text-emerald-700 hover:text-emerald-900 cursor-pointer p-0.5"
+                        title="Copy Verification Hash"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
